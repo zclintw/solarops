@@ -64,9 +64,6 @@ func (p *Plant) GenerateData() models.PlantData {
 }
 
 func (p *Plant) HandleCommand(cmd models.Command) {
-    p.mu.Lock()
-    defer p.mu.Unlock()
-
     for _, panel := range p.Panels {
         if panel.ID == cmd.PanelID {
             switch cmd.Command {
