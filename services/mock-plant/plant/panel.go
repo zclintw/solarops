@@ -30,8 +30,8 @@ func NewPanel(number int, wattPerSec float64) *Panel {
 }
 
 func (p *Panel) Generate() models.PanelData {
-    p.mu.RLock()
-    defer p.mu.RUnlock()
+    p.mu.Lock()
+    defer p.mu.Unlock()
 
     watt := 0.0
     if p.Status == models.StatusOnline {
