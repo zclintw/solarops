@@ -1,0 +1,21 @@
+# Compiled binaries
+services/mock-plant/mock-plant
+services/ws-gateway/ws-gateway
+services/alert-service/alert-service
+services/plant-manager/plant-manager
+
+# Go build artifacts
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+
+# Go workspace sum file
+go.work.sum

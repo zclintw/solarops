@@ -1,0 +1,9 @@
+go 1.22
+
+use (
+	./services/alert-service
+	./services/mock-plant
+	./services/plant-manager
+	./services/ws-gateway
+	./shared
+)
