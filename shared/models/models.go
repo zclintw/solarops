@@ -82,7 +82,7 @@ type Command struct {
 
 type WSMessage struct {
 	Type    string      `json:"type"`
-	Payload interface{} `json:"payload"`
+	Payload any `json:"payload"`
 }
 
 type Alert struct {
