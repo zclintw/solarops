@@ -2,6 +2,7 @@ package detector
 
 import (
     "fmt"
+    "sync"
     "time"
 
     "github.com/solarops/shared/models"
@@ -24,6 +25,7 @@ type panelState struct {
 }
 
 type Detector struct {
+    mu                sync.Mutex
     states            map[panelKey]*panelState
     deadThreshold     int     // consecutive zero readings to trigger DEAD alert
     degradedPercent   float64 // percent drop to trigger DEGRADED
@@ -40,6 +42,8 @@ func NewDetector(deadThreshold int, degradedPercent float64, unstableFlipCount i
 }
 
 func (d *Detector) Feed(plantID, panelID string, panelNumber int, plantName string, watt float64, ts time.Time) {
+    d.mu.Lock()
+    defer d.mu.Unlock()
     key := panelKey{PlantID: plantID, PanelID: panelID}
     state, ok := d.states[key]
     if !ok {
@@ -53,6 +57,8 @@ func (d *Detector) Feed(plantID, panelID string, panelNumber int, plantName stri
 }
 
 func (d *Detector) Check() []models.Alert {
+    d.mu.Lock()
+    defer d.mu.Unlock()
     var alerts []models.Alert
 
     for key, state := range d.states {
@@ -129,5 +135,7 @@ func (d *Detector) Check() []models.Alert {
 }
 
 func (d *Detector) ClearPanel(plantID, panelID string) {
+    d.mu.Lock()
+    defer d.mu.Unlock()
     delete(d.states, panelKey{PlantID: plantID, PanelID: panelID})
 }

@@ -111,8 +111,11 @@ func queryAndDetect(es *elasticsearch.Client, det *detector.Detector, alertStore
 	var buf bytes.Buffer
 	json.NewEncoder(&buf).Encode(query)
 
+	ctx, cancel := context.WithTimeout(context.Background(), 9*time.Second)
+	defer cancel()
+
 	res, err := es.Search(
-		es.Search.WithContext(context.Background()),
+		es.Search.WithContext(ctx),
 		es.Search.WithIndex("plant-data"),
 		es.Search.WithBody(&buf),
 	)
@@ -135,7 +138,10 @@ func queryAndDetect(es *elasticsearch.Client, det *detector.Detector, alertStore
 			} `json:"hits"`
 		} `json:"hits"`
 	}
-	json.NewDecoder(res.Body).Decode(&esResult)
+	if err := json.NewDecoder(res.Body).Decode(&esResult); err != nil {
+		log.Printf("ES decode error: %v", err)
+		return
+	}
 
 	for _, hit := range esResult.Hits.Hits {
 		data := hit.Source
@@ -146,7 +152,7 @@ func queryAndDetect(es *elasticsearch.Client, det *detector.Detector, alertStore
 
 	newAlerts := det.Check()
 	for _, alert := range newAlerts {
-		if alertStore.FindActive(alert.PlantID, alert.PanelID, alert.Type) != nil {
+		if _, found := alertStore.FindActive(alert.PlantID, alert.PanelID, alert.Type); found {
 			continue
 		}
 		created := alertStore.Create(alert)

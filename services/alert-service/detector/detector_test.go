@@ -3,6 +3,8 @@ package detector
 import (
     "testing"
     "time"
+
+    "github.com/solarops/shared/models"
 )
 
 func TestThresholdDetector_Dead(t *testing.T) {
@@ -13,7 +15,7 @@ func TestThresholdDetector_Dead(t *testing.T) {
     alerts := d.Check()
     found := false
     for _, a := range alerts {
-        if a.Type == "PANEL_FAULT" && a.PanelID == "panel-1" {
+        if a.Type == models.AlertPanelFault && a.PanelID == "panel-1" {
             found = true
         }
     }
@@ -44,7 +46,7 @@ func TestDegradedDetector(t *testing.T) {
     alerts := d.Check()
     found := false
     for _, a := range alerts {
-        if a.Type == "PANEL_DEGRADED" {
+        if a.Type == models.AlertPanelDegraded {
             found = true
         }
     }
@@ -65,7 +67,7 @@ func TestIntermittentDetector(t *testing.T) {
     alerts := d.Check()
     found := false
     for _, a := range alerts {
-        if a.Type == "PANEL_UNSTABLE" {
+        if a.Type == models.AlertPanelUnstable {
             found = true
         }
     }

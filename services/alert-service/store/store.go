@@ -64,22 +64,22 @@ func (s *Store) Resolve(plantID, panelID, alertType string) []models.Alert {
     return resolved
 }
 
-func (s *Store) FindActive(plantID, panelID, alertType string) *models.Alert {
+func (s *Store) FindActive(plantID, panelID, alertType string) (models.Alert, bool) {
     s.mu.RLock()
     defer s.mu.RUnlock()
     for _, a := range s.alerts {
         if a.PlantID == plantID && a.PanelID == panelID && a.Type == alertType &&
             (a.Status == models.AlertStatusActive || a.Status == models.AlertStatusAcknowledged) {
-            return a
+            return *a, true
         }
     }
-    return nil
+    return models.Alert{}, false
 }
 
 func (s *Store) List(statusFilter string) []models.Alert {
     s.mu.RLock()
     defer s.mu.RUnlock()
-    var result []models.Alert
+    result := make([]models.Alert, 0)
     for _, a := range s.alerts {
         if statusFilter == "" || a.Status == statusFilter {
             result = append(result, *a)

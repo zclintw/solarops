@@ -82,12 +82,12 @@ func TestStoreFindActive(t *testing.T) {
         PanelID: "panel-1",
         Status:  models.AlertStatusActive,
     })
-    found := s.FindActive("p1", "panel-1", models.AlertPanelFault)
-    if found == nil {
+    _, found := s.FindActive("p1", "panel-1", models.AlertPanelFault)
+    if !found {
         t.Error("expected to find active alert")
     }
-    notFound := s.FindActive("p1", "panel-2", models.AlertPanelFault)
-    if notFound != nil {
-        t.Error("expected nil for non-existent alert")
+    _, notFound := s.FindActive("p1", "panel-2", models.AlertPanelFault)
+    if notFound {
+        t.Error("expected not found for non-existent alert")
     }
 }
