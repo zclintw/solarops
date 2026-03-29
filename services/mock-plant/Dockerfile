@@ -12,7 +12,7 @@ COPY services/ws-gateway/go.mod ./services/ws-gateway/go.mod
 COPY go.work ./
 
 WORKDIR /build/services/mock-plant
-RUN go build -o /app/mock-plant .
+RUN CGO_ENABLED=0 go build -o /app/mock-plant .
 
 FROM alpine:3.19
 
