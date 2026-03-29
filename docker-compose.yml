@@ -28,6 +28,15 @@ services:
       timeout: 5s
       retries: 10
 
+  es-init:
+    image: curlimages/curl:latest
+    volumes:
+      - ./infra/elasticsearch/init-index.sh:/init-index.sh:ro
+    entrypoint: ["/bin/sh", "/init-index.sh"]
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
   # --- Backend Services ---
   ws-gateway:
     build:
