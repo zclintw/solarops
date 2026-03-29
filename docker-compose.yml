@@ -1,0 +1,172 @@
+services:
+  # --- Infrastructure ---
+  nats:
+    image: nats:2.10-alpine
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    command: ["--js"]
+    healthcheck:
+      test: ["CMD", "nats-server", "--signal", "ldm"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+    ports:
+      - "9200:9200"
+    volumes:
+      - es-data:/usr/share/elasticsearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  # --- Backend Services ---
+  ws-gateway:
+    build:
+      context: .
+      dockerfile: services/ws-gateway/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - NATS_URL=nats://nats:4222
+      - LISTEN_ADDR=:8080
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  alert-service:
+    build:
+      context: .
+      dockerfile: services/alert-service/Dockerfile
+    ports:
+      - "8081:8081"
+    environment:
+      - NATS_URL=nats://nats:4222
+      - ES_URL=http://elasticsearch:9200
+      - LISTEN_ADDR=:8081
+    depends_on:
+      nats:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  plant-manager:
+    build:
+      context: .
+      dockerfile: services/plant-manager/Dockerfile
+    ports:
+      - "8082:8082"
+    environment:
+      - NATS_URL=nats://nats:4222
+      - ES_URL=http://elasticsearch:9200
+      - LISTEN_ADDR=:8082
+      - MOCK_PLANT_IMAGE=solarops-mock-plant
+      - DOCKER_NETWORK=solarops_default
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    depends_on:
+      nats:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+
+  # --- Mock Plants (initial 3) ---
+  mock-plant-1:
+    build:
+      context: .
+      dockerfile: services/mock-plant/Dockerfile
+    environment:
+      - PLANT_NAME=Sunrise Valley
+      - PLANT_PANELS=50
+      - WATT_PER_SEC=300
+      - NATS_URL=nats://nats:4222
+      - LOG_PATH=/var/log/plant/data.log
+    volumes:
+      - plant-1-logs:/var/log/plant
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  mock-plant-1-fluentd:
+    build:
+      context: infra/fluentd
+    volumes:
+      - plant-1-logs:/var/log/plant:ro
+    depends_on:
+      - mock-plant-1
+      - elasticsearch
+
+  mock-plant-2:
+    build:
+      context: .
+      dockerfile: services/mock-plant/Dockerfile
+    environment:
+      - PLANT_NAME=Golden Ridge
+      - PLANT_PANELS=30
+      - WATT_PER_SEC=250
+      - NATS_URL=nats://nats:4222
+      - LOG_PATH=/var/log/plant/data.log
+    volumes:
+      - plant-2-logs:/var/log/plant
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  mock-plant-2-fluentd:
+    build:
+      context: infra/fluentd
+    volumes:
+      - plant-2-logs:/var/log/plant:ro
+    depends_on:
+      - mock-plant-2
+      - elasticsearch
+
+  mock-plant-3:
+    build:
+      context: .
+      dockerfile: services/mock-plant/Dockerfile
+    environment:
+      - PLANT_NAME=Blue Horizon
+      - PLANT_PANELS=40
+      - WATT_PER_SEC=280
+      - NATS_URL=nats://nats:4222
+      - LOG_PATH=/var/log/plant/data.log
+    volumes:
+      - plant-3-logs:/var/log/plant
+    depends_on:
+      nats:
+        condition: service_healthy
+
+  mock-plant-3-fluentd:
+    build:
+      context: infra/fluentd
+    volumes:
+      - plant-3-logs:/var/log/plant:ro
+    depends_on:
+      - mock-plant-3
+      - elasticsearch
+
+  # --- Frontend ---
+  frontend:
+    build:
+      context: frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - ws-gateway
+      - plant-manager
+      - alert-service
+
+volumes:
+  es-data:
+  plant-1-logs:
+  plant-2-logs:
+  plant-3-logs:

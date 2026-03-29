@@ -4,15 +4,27 @@ services/ws-gateway/ws-gateway
 services/alert-service/alert-service
 services/plant-manager/plant-manager
 
-# Go build artifacts
+# Dependencies
+node_modules/
+
+# Build
+/frontend/dist/
+
+# Environment
+.env.local
+
+# IDE
+.idea/
+.vscode/
+
+# OS
+.DS_Store
+
+# Go
 *.exe
 *.exe~
 *.dll
 *.so
 *.dylib
-
-# Test binary, built with `go test -c`
 *.test
-
-# Output of the go coverage tool
 *.out
