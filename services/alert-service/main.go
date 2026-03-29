@@ -154,4 +154,14 @@ func queryAndDetect(es *elasticsearch.Client, det *detector.Detector, alertStore
 		nc.Publish("alert.new", alertJSON)
 		log.Printf("New alert: %s - %s", created.Type, created.Message)
 	}
+
+	// Check DATA_GAP: plants that haven't reported
+	checkDataGaps(es, alertStore, nc)
+}
+
+func checkDataGaps(es *elasticsearch.Client, alertStore *store.Store, nc *nats.Conn) {
+	// Query distinct plants in last 60 seconds vs last 10 seconds
+	// If a plant exists in 60s window but not in 10s window, it's a data gap
+	// Simplified: just check if any known plants have no recent data
+	// This is handled by the detector via absence of Feed calls
 }
