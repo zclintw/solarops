@@ -96,10 +96,10 @@ func main() {
 
         // Writer goroutine: send NATS messages to WebSocket client
         go func() {
-            defer conn.Close()
             for msg := range ch {
                 if err := conn.WriteMessage(websocket.TextMessage, msg); err != nil {
-                    break
+                    conn.Close() // close connection to unblock reader
+                    return
                 }
             }
         }()
@@ -124,6 +124,10 @@ func main() {
             }
             json.Unmarshal(payloadBytes, &cmdPayload)
 
+            if cmdPayload.PlantID == "" || cmdPayload.PanelID == "" {
+                continue
+            }
+
             var cmd models.Command
             switch wsMsg.Type {
             case models.MsgPanelOffline:
@@ -142,6 +146,7 @@ func main() {
         }
 
         h.Unregister(ch)
+        conn.Close()
         log.Printf("Client disconnected (total: %d)", h.ClientCount())
     })
 

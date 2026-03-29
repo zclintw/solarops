@@ -22,8 +22,10 @@ func (h *Hub) Register(ch chan []byte) {
 func (h *Hub) Unregister(ch chan []byte) {
     h.mu.Lock()
     defer h.mu.Unlock()
-    delete(h.clients, ch)
-    close(ch)
+    if _, ok := h.clients[ch]; ok {
+        delete(h.clients, ch)
+        close(ch)
+    }
 }
 
 func (h *Hub) Broadcast(data []byte) {
