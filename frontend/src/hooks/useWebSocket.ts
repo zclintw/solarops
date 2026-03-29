@@ -1,12 +1,12 @@
 import { useEffect, useRef, useCallback } from "react";
-import { WSMessage } from "../types";
+import type { WSMessage } from "../types";
 
 const WS_URL = `ws://${window.location.host}/ws`;
 const RECONNECT_DELAY = 3000;
 
 export function useWebSocket(onMessage: (msg: WSMessage) => void) {
   const wsRef = useRef<WebSocket | null>(null);
-  const reconnectTimer = useRef<number>();
+  const reconnectTimer = useRef<number>(0);
 
   const connect = useCallback(() => {
     const ws = new WebSocket(WS_URL);

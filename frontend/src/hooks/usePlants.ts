@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import { PlantData, PlantState, Alert, WSMessage } from "../types";
+import type { PlantData, PlantState, Alert, WSMessage } from "../types";
 
 const STALE_THRESHOLD_MS = 10_000;
 const OFFLINE_THRESHOLD_MS = 60_000;
