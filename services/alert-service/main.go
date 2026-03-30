@@ -40,15 +40,13 @@ func main() {
 	alertStore := store.New()
 	det := detector.NewDetector(3, 30.0, 5)
 
-	// Subscribe to real-time plant data
-	nc.Subscribe("plant.*.data", func(msg *nats.Msg) {
-		var data models.PlantData
-		if err := json.Unmarshal(msg.Data, &data); err != nil {
+	// Subscribe to real-time panel data
+	nc.Subscribe("plant.*.panel.data", func(msg *nats.Msg) {
+		var reading models.PanelReading
+		if err := json.Unmarshal(msg.Data, &reading); err != nil {
 			return
 		}
-		for _, panel := range data.Panels {
-			det.Feed(data.PlantID, panel.PanelID, panel.PanelNumber, data.PlantName, panel.Watt, data.Timestamp)
-		}
+		det.Feed(reading.PlantID, reading.PanelID, reading.PanelNumber, reading.PlantName, reading.Watt, reading.Timestamp)
 		newAlerts := det.Check()
 		for _, alert := range newAlerts {
 			if _, found := alertStore.FindActive(alert.PlantID, alert.PanelID, alert.Type); found {
@@ -60,7 +58,7 @@ func main() {
 			log.Printf("New alert: %s - %s", created.Type, created.Message)
 		}
 	})
-	log.Println("Subscribed to plant.*.data")
+	log.Println("Subscribed to plant.*.panel.data")
 
 	mux := http.NewServeMux()
 
