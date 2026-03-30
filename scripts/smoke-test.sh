@@ -35,12 +35,20 @@ fi
 echo ""
 echo "3. Checking Elasticsearch has data..."
 sleep 5
-es_count=$(curl -s "http://localhost:9200/plant-panel/_count" | python3 -c "import sys,json; print(json.load(sys.stdin).get('count', 0))" 2>/dev/null || echo 0)
-echo "   ES documents: $es_count"
+es_count=$(curl -s "http://localhost:9200/plant-panel-*/_count" | python3 -c "import sys,json; print(json.load(sys.stdin).get('count', 0))" 2>/dev/null || echo 0)
+echo "   ES panel documents: $es_count"
 if [ "$es_count" -gt 0 ]; then
-  echo "   ✓ Data flowing to ES"
+  echo "   ✓ Panel data flowing to ES"
 else
-  echo "   ✗ No data in ES yet"
+  echo "   ✗ No panel data in ES yet"
+fi
+
+summary_count=$(curl -s "http://localhost:9200/plant-summary-*/_count" | python3 -c "import sys,json; print(json.load(sys.stdin).get('count', 0))" 2>/dev/null || echo 0)
+echo "   ES summary documents: $summary_count"
+if [ "$summary_count" -gt 0 ]; then
+  echo "   ✓ Summary data aggregated to ES"
+else
+  echo "   ⚠ No summary data yet (aggregator may need 10s)"
 fi
 
 echo ""
@@ -54,8 +62,22 @@ echo "5. Triggering fault on first plant..."
 first_plant=$(echo "$plants" | python3 -c "import sys,json; d=json.load(sys.stdin); print(d[0]['plantId'] if d else '')" 2>/dev/null)
 if [ -n "$first_plant" ]; then
   echo "   Plant ID: $first_plant"
-  echo "   (Fault trigger via Plant Manager API)"
-  echo "   ✓ Fault trigger test requires panel IDs from WebSocket data"
+  first_panel=$(curl -s "$PM_URL/api/plants/$first_plant/panels" | python3 -c "
+import sys,json
+d=json.load(sys.stdin)
+buckets=d.get('aggregations',{}).get('by_panel',{}).get('buckets',[])
+hits=buckets[0]['latest']['hits']['hits'] if buckets else []
+print(hits[0]['_source']['panelId'] if hits else '')
+" 2>/dev/null)
+  if [ -n "$first_panel" ]; then
+    echo "   Panel ID: $first_panel"
+    fault_resp=$(curl -s -X POST "$PM_URL/api/plants/$first_plant/panels/$first_panel/fault" \
+      -H "Content-Type: application/json" -d '{"mode":"LOW_OUTPUT"}')
+    echo "   Fault response: $fault_resp"
+    echo "   ✓ Fault trigger sent"
+  else
+    echo "   ⚠ No panel data yet (may need more time)"
+  fi
 else
   echo "   ⚠ No plant to test fault trigger"
 fi
