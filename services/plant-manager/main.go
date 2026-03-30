@@ -216,7 +216,7 @@ func main() {
 					"filter": []map[string]interface{}{
 						{"term": map[string]interface{}{"plantId": plantID}},
 						{"range": map[string]interface{}{
-							"@timestamp": map[string]interface{}{"gte": "now-" + rangeParam},
+							"timestamp": map[string]interface{}{"gte": "now-" + rangeParam},
 						}},
 					},
 				},
@@ -224,12 +224,12 @@ func main() {
 			"aggs": map[string]interface{}{
 				"over_time": map[string]interface{}{
 					"date_histogram": map[string]interface{}{
-						"field":          "@timestamp",
+						"field":          "timestamp",
 						"fixed_interval": interval,
 					},
 					"aggs": map[string]interface{}{
 						"total_watt": map[string]interface{}{
-							"sum": map[string]interface{}{"field": "watt"},
+							"avg": map[string]interface{}{"field": "totalWatt"},
 						},
 					},
 				},
@@ -241,7 +241,7 @@ func main() {
 
 		res, err := es.Search(
 			es.Search.WithContext(context.Background()),
-			es.Search.WithIndex("plant-panel-*"),
+			es.Search.WithIndex("plant-summary-*"),
 			es.Search.WithBody(&buf),
 		)
 		if err != nil {
