@@ -127,8 +127,10 @@ services:
     volumes:
       - plant-1-logs:/var/log/plant:ro
     depends_on:
-      - mock-plant-1
-      - elasticsearch
+      mock-plant-1:
+        condition: service_started
+      es-init:
+        condition: service_completed_successfully
 
   mock-plant-2:
     build:
@@ -152,8 +154,10 @@ services:
     volumes:
       - plant-2-logs:/var/log/plant:ro
     depends_on:
-      - mock-plant-2
-      - elasticsearch
+      mock-plant-2:
+        condition: service_started
+      es-init:
+        condition: service_completed_successfully
 
   mock-plant-3:
     build:
@@ -177,8 +181,10 @@ services:
     volumes:
       - plant-3-logs:/var/log/plant:ro
     depends_on:
-      - mock-plant-3
-      - elasticsearch
+      mock-plant-3:
+        condition: service_started
+      es-init:
+        condition: service_completed_successfully
 
   # --- Frontend ---
   frontend:
