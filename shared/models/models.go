@@ -31,6 +31,8 @@ const (
 	MsgPlantUnregistered = "PLANT_UNREGISTERED"
 	MsgAlertNew          = "ALERT_NEW"
 	MsgAlertResolved     = "ALERT_RESOLVED"
+	MsgPlantSummary      = "PLANT_SUMMARY"
+	MsgPanelReading      = "PANEL_READING"
 )
 
 // WebSocket message types (client → server)
@@ -96,6 +98,30 @@ type Alert struct {
 	Message     string    `json:"message"`
 	CreatedAt   time.Time `json:"createdAt"`
 	UpdatedAt   time.Time `json:"updatedAt"`
+}
+
+// PanelReading is a standalone panel data point (includes plant context for ES/NATS independence)
+type PanelReading struct {
+	PlantID     string    `json:"plantId"`
+	PlantName   string    `json:"plantName"`
+	PanelID     string    `json:"panelId"`
+	PanelNumber int       `json:"panelNumber"`
+	Status      string    `json:"status"`
+	FaultMode   string    `json:"faultMode,omitempty"`
+	Watt        float64   `json:"watt"`
+	Timestamp   time.Time `json:"timestamp"`
+}
+
+// PlantSummary is a plant-level summary without embedded panels array
+type PlantSummary struct {
+	PlantID      string    `json:"plantId"`
+	PlantName    string    `json:"plantName"`
+	Timestamp    time.Time `json:"timestamp"`
+	TotalWatt    float64   `json:"totalWatt"`
+	PanelCount   int       `json:"panelCount"`
+	OnlineCount  int       `json:"onlineCount"`
+	OfflineCount int       `json:"offlineCount"`
+	FaultyCount  int       `json:"faultyCount"`
 }
 
 type PlantInfo struct {
