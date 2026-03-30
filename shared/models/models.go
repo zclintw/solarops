@@ -26,7 +26,6 @@ const (
 
 // WebSocket message types (server → client)
 const (
-	MsgPlantData         = "PLANT_DATA"
 	MsgPlantRegistered   = "PLANT_REGISTERED"
 	MsgPlantUnregistered = "PLANT_UNREGISTERED"
 	MsgAlertNew          = "ALERT_NEW"
@@ -57,6 +56,7 @@ const (
 	AlertStatusResolved     = "resolved"
 )
 
+// PanelData is used internally by mock-plant's Panel.Generate()
 type PanelData struct {
 	PanelID     string  `json:"panelId"`
 	PanelNumber int     `json:"panelNumber"`
@@ -65,16 +65,6 @@ type PanelData struct {
 	Watt        float64 `json:"watt"`
 }
 
-type PlantData struct {
-	PlantID      string      `json:"plantId"`
-	PlantName    string      `json:"plantName"`
-	Timestamp    time.Time   `json:"timestamp"`
-	Panels       []PanelData `json:"panels"`
-	TotalWatt    float64     `json:"totalWatt"`
-	OnlineCount  int         `json:"onlineCount"`
-	OfflineCount int         `json:"offlineCount"`
-	FaultyCount  int         `json:"faultyCount"`
-}
 
 type Command struct {
 	Command   string `json:"command"`

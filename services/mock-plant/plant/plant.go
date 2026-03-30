@@ -27,42 +27,6 @@ func NewPlant(name string, panelCount int, wattPerSec float64) *Plant {
     }
 }
 
-func (p *Plant) GenerateData() models.PlantData {
-    p.mu.RLock()
-    defer p.mu.RUnlock()
-
-    panelData := make([]models.PanelData, len(p.Panels))
-    totalWatt := 0.0
-    online, offline, faulty := 0, 0, 0
-
-    for i, panel := range p.Panels {
-        pd := panel.Generate()
-        panelData[i] = pd
-        totalWatt += pd.Watt
-
-        switch {
-        case pd.Status == models.StatusOffline:
-            offline++
-        case pd.FaultMode != models.FaultNone:
-            faulty++
-            online++ // faulty panels are still "online" in status
-        default:
-            online++
-        }
-    }
-
-    return models.PlantData{
-        PlantID:      p.ID,
-        PlantName:    p.Name,
-        Timestamp:    time.Now().UTC(),
-        Panels:       panelData,
-        TotalWatt:    totalWatt,
-        OnlineCount:  online,
-        OfflineCount: offline,
-        FaultyCount:  faulty,
-    }
-}
-
 func (p *Plant) GeneratePanelReadings() []models.PanelReading {
 	p.mu.RLock()
 	defer p.mu.RUnlock()

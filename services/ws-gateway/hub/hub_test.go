@@ -31,7 +31,7 @@ func TestHubBroadcast(t *testing.T) {
     h.Register(ch1)
     h.Register(ch2)
 
-    msg := models.WSMessage{Type: models.MsgPlantData, Payload: "test"}
+    msg := models.WSMessage{Type: models.MsgPlantSummary, Payload: "test"}
     data, _ := json.Marshal(msg)
     h.Broadcast(data)
 
