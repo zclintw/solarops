@@ -35,7 +35,7 @@ fi
 echo ""
 echo "3. Checking Elasticsearch has data..."
 sleep 5
-es_count=$(curl -s "http://localhost:9200/plant-data/_count" | python3 -c "import sys,json; print(json.load(sys.stdin).get('count', 0))" 2>/dev/null || echo 0)
+es_count=$(curl -s "http://localhost:9200/plant-panel/_count" | python3 -c "import sys,json; print(json.load(sys.stdin).get('count', 0))" 2>/dev/null || echo 0)
 echo "   ES documents: $es_count"
 if [ "$es_count" -gt 0 ]; then
   echo "   ✓ Data flowing to ES"
