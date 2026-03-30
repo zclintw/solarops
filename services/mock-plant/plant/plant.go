@@ -63,6 +63,59 @@ func (p *Plant) GenerateData() models.PlantData {
     }
 }
 
+func (p *Plant) GeneratePanelReadings() []models.PanelReading {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	now := time.Now().UTC()
+	readings := make([]models.PanelReading, len(p.Panels))
+	for i, panel := range p.Panels {
+		pd := panel.Generate()
+		readings[i] = models.PanelReading{
+			PlantID:     p.ID,
+			PlantName:   p.Name,
+			PanelID:     pd.PanelID,
+			PanelNumber: pd.PanelNumber,
+			Status:      pd.Status,
+			FaultMode:   pd.FaultMode,
+			Watt:        pd.Watt,
+			Timestamp:   now,
+		}
+	}
+	return readings
+}
+
+func (p *Plant) GenerateSummary() models.PlantSummary {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	totalWatt := 0.0
+	online, offline, faulty := 0, 0, 0
+	for _, panel := range p.Panels {
+		pd := panel.Generate()
+		totalWatt += pd.Watt
+		switch {
+		case pd.Status == models.StatusOffline:
+			offline++
+		case pd.FaultMode != models.FaultNone:
+			faulty++
+			online++
+		default:
+			online++
+		}
+	}
+	return models.PlantSummary{
+		PlantID:      p.ID,
+		PlantName:    p.Name,
+		Timestamp:    time.Now().UTC(),
+		TotalWatt:    totalWatt,
+		PanelCount:   len(p.Panels),
+		OnlineCount:  online,
+		OfflineCount: offline,
+		FaultyCount:  faulty,
+	}
+}
+
 func (p *Plant) HandleCommand(cmd models.Command) {
     for _, panel := range p.Panels {
         if panel.ID == cmd.PanelID {
