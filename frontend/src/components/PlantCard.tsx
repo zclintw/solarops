@@ -22,7 +22,7 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 export function PlantCard({ plantId, state, onRemove }: PlantCardProps) {
-  const { data, status } = state;
+  const { summary, status } = state;
   const color = STATUS_COLORS[status] || "#6b7280";
 
   return (
@@ -39,7 +39,7 @@ export function PlantCard({ plantId, state, onRemove }: PlantCardProps) {
       }}
     >
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <h3 style={{ margin: 0 }}>{data?.plantName || "Loading..."}</h3>
+        <h3 style={{ margin: 0 }}>{summary?.plantName || "Loading..."}</h3>
         <span
           style={{
             width: 12,
@@ -53,13 +53,13 @@ export function PlantCard({ plantId, state, onRemove }: PlantCardProps) {
       <div style={{ color: "#888", fontSize: 14, marginTop: 4 }}>
         {STATUS_LABELS[status]}
       </div>
-      {data && (
+      {summary && (
         <div style={{ marginTop: 12, fontSize: 14 }}>
           <div style={{ fontSize: 24, fontWeight: "bold" }}>
-            {(data.totalWatt / 1000).toFixed(1)} kW
+            {(summary.totalWatt / 1000).toFixed(1)} kW
           </div>
           <div style={{ marginTop: 8, color: "#aaa" }}>
-            Panels: {data.panels.length} | Normal: {data.onlineCount - data.faultyCount} | Faulty: {data.faultyCount}
+            Panels: {summary.panelCount} | Normal: {summary.onlineCount - summary.faultyCount} | Faulty: {summary.faultyCount}
           </div>
         </div>
       )}

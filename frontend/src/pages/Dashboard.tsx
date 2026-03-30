@@ -24,7 +24,7 @@ export function Dashboard({
   const totalWatt = useMemo(
     () =>
       plantEntries.reduce(
-        (sum, [, state]) => sum + (state.data?.totalWatt || 0),
+        (sum, [, state]) => sum + (state.summary?.totalWatt || 0),
         0
       ),
     [plantEntries]

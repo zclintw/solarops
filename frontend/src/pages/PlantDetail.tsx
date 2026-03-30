@@ -28,9 +28,9 @@ export function PlantDetail({ plants, send }: PlantDetailProps) {
       .then((data) => {
         const buckets = data?.aggregations?.over_time?.buckets || [];
         setHistory(
-          buckets.map((b: { key_as_string: string; avg_watt: { value: number } }) => ({
+          buckets.map((b: { key_as_string: string; total_watt: { value: number } }) => ({
             time: new Date(b.key_as_string).toLocaleTimeString(),
-            watt: Math.round(b.avg_watt?.value || 0),
+            watt: Math.round(b.total_watt?.value || 0),
           }))
         );
       })
@@ -38,18 +38,18 @@ export function PlantDetail({ plants, send }: PlantDetailProps) {
   }, [plantId]);
 
   useEffect(() => {
-    if (!state?.data) return;
+    if (!state?.summary) return;
     const now = Math.floor(Date.now() / 10000) * 10000;
     setHistory((prev) => [
       ...prev.slice(-59),
       {
         time: new Date(now).toLocaleTimeString(),
-        watt: Math.round(state.data!.totalWatt),
+        watt: Math.round(state.summary!.totalWatt),
       },
     ]);
-  }, [state?.data?.timestamp]);
+  }, [state?.summary?.timestamp]);
 
-  if (!state?.data) {
+  if (!state?.summary) {
     return (
       <div style={{ padding: 24 }}>
         <Link to="/" style={{ color: "#888" }}>
@@ -60,7 +60,8 @@ export function PlantDetail({ plants, send }: PlantDetailProps) {
     );
   }
 
-  const { data, status } = state;
+  const { summary, panels, status } = state;
+  const panelList = Object.values(panels);
   const color = STATUS_COLORS[status] || "#6b7280";
 
   const handleToggle = (panelId: string, currentStatus: string) => {
@@ -87,7 +88,7 @@ export function PlantDetail({ plants, send }: PlantDetailProps) {
           marginBottom: 24,
         }}
       >
-        <h1 style={{ margin: 0 }}>{data.plantName}</h1>
+        <h1 style={{ margin: 0 }}>{summary.plantName}</h1>
         <span
           style={{
             width: 12,
@@ -98,7 +99,7 @@ export function PlantDetail({ plants, send }: PlantDetailProps) {
           }}
         />
         <span style={{ fontSize: 28, fontWeight: "bold", color: "#22c55e" }}>
-          {(data.totalWatt / 1000).toFixed(1)} kW
+          {(summary.totalWatt / 1000).toFixed(1)} kW
         </span>
       </div>
 
@@ -124,13 +125,13 @@ export function PlantDetail({ plants, send }: PlantDetailProps) {
         }}
       >
         <h2 style={{ margin: "0 0 16px", fontSize: 16 }}>
-          Solar Panels ({data.panels.length})
+          Solar Panels ({summary.panelCount})
           <span style={{ color: "#888", fontWeight: "normal", marginLeft: 8 }}>
-            Online: {data.onlineCount} | Faulty: {data.faultyCount} | Offline: {data.offlineCount}
+            Online: {summary.onlineCount} | Faulty: {summary.faultyCount} | Offline: {summary.offlineCount}
           </span>
         </h2>
         <PanelGrid
-          panels={data.panels}
+          panels={panelList}
           onToggle={handleToggle}
           onReset={handleReset}
         />

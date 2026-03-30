@@ -18,7 +18,7 @@ function App() {
   useEffect(() => {
     const interval = setInterval(() => {
       const totalWatt = Object.values(plantsRef.current).reduce(
-        (sum, s) => sum + (s.data?.totalWatt || 0),
+        (sum, s) => sum + (s.summary?.totalWatt || 0),
         0
       );
       powerHistoryRef.current = [

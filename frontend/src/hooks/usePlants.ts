@@ -1,5 +1,5 @@
 import { useState, useCallback, useRef, useEffect } from "react";
-import type { PlantData, PlantState, Alert, WSMessage } from "../types";
+import type { PanelReading, PlantSummary, PlantState, Alert, WSMessage } from "../types";
 
 const STALE_THRESHOLD_MS = 10_000;
 const OFFLINE_THRESHOLD_MS = 60_000;
@@ -12,16 +12,37 @@ export function usePlants() {
 
   const handleMessage = useCallback((msg: WSMessage) => {
     switch (msg.type) {
-      case "PLANT_DATA": {
-        const data = msg.payload as PlantData;
+      case "PLANT_SUMMARY": {
+        const summary = msg.payload as PlantSummary;
         setPlants((prev) => ({
           ...prev,
-          [data.plantId]: {
-            data,
-            status: data.faultyCount > 0 ? "fault" : "online",
+          [summary.plantId]: {
+            ...prev[summary.plantId],
+            summary,
+            panels: prev[summary.plantId]?.panels || {},
+            status: summary.faultyCount > 0 ? "fault" : "online",
             lastSeen: Date.now(),
           },
         }));
+        break;
+      }
+      case "PANEL_READING": {
+        const reading = msg.payload as PanelReading;
+        setPlants((prev) => {
+          const existing = prev[reading.plantId];
+          return {
+            ...prev,
+            [reading.plantId]: {
+              summary: existing?.summary || null,
+              panels: {
+                ...(existing?.panels || {}),
+                [reading.panelId]: reading,
+              },
+              status: existing?.status || "online",
+              lastSeen: Date.now(),
+            },
+          };
+        });
         break;
       }
       case "PLANT_REGISTERED": {
@@ -29,7 +50,8 @@ export function usePlants() {
         setPlants((prev) => ({
           ...prev,
           [info.plantId]: {
-            data: null,
+            summary: null,
+            panels: {},
             status: "online",
             lastSeen: Date.now(),
           },

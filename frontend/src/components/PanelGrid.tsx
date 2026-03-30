@@ -1,12 +1,12 @@
-import type { PanelData } from "../types";
+import type { PanelReading } from "../types";
 
 interface PanelGridProps {
-  panels: PanelData[];
+  panels: PanelReading[];
   onToggle: (panelId: string, currentStatus: string) => void;
   onReset: (panelId: string) => void;
 }
 
-function getPanelColor(panel: PanelData): string {
+function getPanelColor(panel: PanelReading): string {
   if (panel.status === "offline") return "#6b7280";
   if (panel.faultMode) return "#ef4444";
   return "#22c55e";
