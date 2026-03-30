@@ -228,8 +228,8 @@ func main() {
 						"fixed_interval": interval,
 					},
 					"aggs": map[string]interface{}{
-						"avg_watt": map[string]interface{}{
-							"avg": map[string]interface{}{"field": "totalWatt"},
+						"total_watt": map[string]interface{}{
+							"sum": map[string]interface{}{"field": "watt"},
 						},
 					},
 				},
@@ -241,7 +241,7 @@ func main() {
 
 		res, err := es.Search(
 			es.Search.WithContext(context.Background()),
-			es.Search.WithIndex("plant-data"),
+			es.Search.WithIndex("plant-panel"),
 			es.Search.WithBody(&buf),
 		)
 		if err != nil {

@@ -5,11 +5,11 @@ until curl -s http://elasticsearch:9200/_cluster/health | grep -q '"status":"gre
   sleep 2
 done
 
-# Create index template
-curl -X PUT "http://elasticsearch:9200/_index_template/plant-data-template" \
+# Create flat panel-reading index template
+curl -X PUT "http://elasticsearch:9200/_index_template/plant-panel-template" \
   -H "Content-Type: application/json" \
   -d '{
-  "index_patterns": ["plant-data*"],
+  "index_patterns": ["plant-panel*"],
   "template": {
     "settings": {
       "number_of_shards": 1,
@@ -17,23 +17,14 @@ curl -X PUT "http://elasticsearch:9200/_index_template/plant-data-template" \
     },
     "mappings": {
       "properties": {
-        "plantId": { "type": "keyword" },
-        "plantName": { "type": "keyword" },
-        "timestamp": { "type": "date" },
-        "totalWatt": { "type": "float" },
-        "onlineCount": { "type": "integer" },
-        "offlineCount": { "type": "integer" },
-        "faultyCount": { "type": "integer" },
-        "panels": {
-          "type": "nested",
-          "properties": {
-            "panelId": { "type": "keyword" },
-            "panelNumber": { "type": "integer" },
-            "status": { "type": "keyword" },
-            "faultMode": { "type": "keyword" },
-            "watt": { "type": "float" }
-          }
-        }
+        "plantId":     { "type": "keyword" },
+        "plantName":   { "type": "keyword" },
+        "panelId":     { "type": "keyword" },
+        "panelNumber": { "type": "integer" },
+        "status":      { "type": "keyword" },
+        "faultMode":   { "type": "keyword" },
+        "watt":        { "type": "float" },
+        "timestamp":   { "type": "date" }
       }
     }
   }
