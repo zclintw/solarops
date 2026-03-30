@@ -1,61 +1,64 @@
-import { useState, useCallback, useRef, useEffect } from "react";
+import { useState, useCallback, useEffect } from "react";
 import type { PanelReading, PlantSummary, PlantState, Alert, WSMessage } from "../types";
 
-const STALE_THRESHOLD_MS = 10_000;
-const OFFLINE_THRESHOLD_MS = 60_000;
+const STALE_THRESHOLD_MS = 30_000;
+const OFFLINE_THRESHOLD_MS = 90_000;
+const POLL_INTERVAL_MS = 3_000;
 
 export function usePlants() {
   const [plants, setPlants] = useState<Record<string, PlantState>>({});
   const [alerts, setAlerts] = useState<Alert[]>([]);
-  const plantsRef = useRef(plants);
-  plantsRef.current = plants;
 
+  // Poll plant summaries from ES via plant-manager API
+  useEffect(() => {
+    const poll = async () => {
+      try {
+        const res = await fetch("/api/plants/summary");
+        const data = await res.json();
+        const buckets: Array<{
+          key: string;
+          latest: { hits: { hits: Array<{ _source: PlantSummary }> } };
+        }> = data?.aggregations?.by_plant?.buckets || [];
+
+        setPlants((prev) => {
+          const next = { ...prev };
+          for (const bucket of buckets) {
+            const summary = bucket.latest?.hits?.hits?.[0]?._source;
+            if (!summary) continue;
+            next[summary.plantId] = {
+              summary,
+              panels: prev[summary.plantId]?.panels || {},
+              status: summary.faultyCount > 0 ? "fault" : "online",
+              lastSeen: Date.now(),
+            };
+          }
+          return next;
+        });
+      } catch {}
+    };
+
+    poll();
+    const interval = setInterval(poll, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, []);
+
+  // WebSocket events only: plant registration and alerts
   const handleMessage = useCallback((msg: WSMessage) => {
     switch (msg.type) {
-      case "PLANT_SUMMARY": {
-        const summary = msg.payload as PlantSummary;
-        setPlants((prev) => ({
-          ...prev,
-          [summary.plantId]: {
-            ...prev[summary.plantId],
-            summary,
-            panels: prev[summary.plantId]?.panels || {},
-            status: summary.faultyCount > 0 ? "fault" : "online",
-            lastSeen: Date.now(),
-          },
-        }));
-        break;
-      }
-      case "PANEL_READING": {
-        const reading = msg.payload as PanelReading;
+      case "PLANT_REGISTERED": {
+        const info = msg.payload as { plantId: string; plantName: string };
         setPlants((prev) => {
-          const existing = prev[reading.plantId];
+          if (prev[info.plantId]) return prev; // already known from polling
           return {
             ...prev,
-            [reading.plantId]: {
-              summary: existing?.summary || null,
-              panels: {
-                ...(existing?.panels || {}),
-                [reading.panelId]: reading,
-              },
-              status: existing?.status || "online",
+            [info.plantId]: {
+              summary: null,
+              panels: {},
+              status: "online",
               lastSeen: Date.now(),
             },
           };
         });
-        break;
-      }
-      case "PLANT_REGISTERED": {
-        const info = msg.payload as { plantId: string; plantName: string };
-        setPlants((prev) => ({
-          ...prev,
-          [info.plantId]: {
-            summary: null,
-            panels: {},
-            status: "online",
-            lastSeen: Date.now(),
-          },
-        }));
         break;
       }
       case "ALERT_NEW": {
@@ -75,7 +78,7 @@ export function usePlants() {
     }
   }, []);
 
-  // Check for stale/offline plants
+  // Check for stale/offline plants (no data from ES in a while)
   useEffect(() => {
     const interval = setInterval(() => {
       const now = Date.now();
@@ -103,7 +106,7 @@ export function usePlants() {
         }
         return changed ? next : prev;
       });
-    }, 1000);
+    }, 5000);
 
     return () => clearInterval(interval);
   }, []);
@@ -133,5 +136,14 @@ export function usePlants() {
     );
   }, []);
 
-  return { plants, alerts, handleMessage, removePlant, acknowledgeAlert };
+  // Update panels for a specific plant (called by PlantDetail)
+  const updatePanels = useCallback((plantId: string, panels: Record<string, PanelReading>) => {
+    setPlants((prev) => {
+      const existing = prev[plantId];
+      if (!existing) return prev;
+      return { ...prev, [plantId]: { ...existing, panels } };
+    });
+  }, []);
+
+  return { plants, alerts, handleMessage, removePlant, acknowledgeAlert, updatePanels };
 }

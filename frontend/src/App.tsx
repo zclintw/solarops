@@ -1,36 +1,13 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback } from "react";
 import { Dashboard } from "./pages/Dashboard";
 import { PlantDetail } from "./pages/PlantDetail";
 import { useWebSocket } from "./hooks/useWebSocket";
 import { usePlants } from "./hooks/usePlants";
 
 function App() {
-  const { plants, alerts, handleMessage, removePlant, acknowledgeAlert } =
+  const { plants, alerts, handleMessage, removePlant, acknowledgeAlert, updatePanels } =
     usePlants();
-
-  const powerHistoryRef = useRef<{ time: string; watt: number }[]>([]);
-  // Use a ref so the interval always reads the latest plants without re-registering
-  const plantsRef = useRef(plants);
-  plantsRef.current = plants;
-
-  // Sample total watt every 10s from a stable interval — avoids partial-data spikes
-  useEffect(() => {
-    const interval = setInterval(() => {
-      const totalWatt = Object.values(plantsRef.current).reduce(
-        (sum, s) => sum + (s.summary?.totalWatt || 0),
-        0
-      );
-      powerHistoryRef.current = [
-        ...powerHistoryRef.current.slice(-59),
-        {
-          time: new Date().toLocaleTimeString(),
-          watt: Math.round(totalWatt),
-        },
-      ];
-    }, 10_000);
-    return () => clearInterval(interval);
-  }, []);
 
   const onMessage = useCallback(
     (msg: { type: string; payload: unknown }) => {
@@ -75,13 +52,12 @@ function App() {
                 alerts={alerts}
                 onRemovePlant={removePlant}
                 onAcknowledgeAlert={acknowledgeAlert}
-                powerHistory={powerHistoryRef.current}
               />
             }
           />
           <Route
             path="/plants/:plantId"
-            element={<PlantDetail plants={plants} send={send} />}
+            element={<PlantDetail plants={plants} send={send} updatePanels={updatePanels} />}
           />
         </Routes>
       </div>
