@@ -44,9 +44,16 @@ func main() {
 
     h := hub.New()
 
-    // Subscribe to plant data — forward to all WebSocket clients
-    nc.Subscribe("plant.*.data", func(msg *nats.Msg) {
-        wsMsg := models.WSMessage{Type: models.MsgPlantData, Payload: json.RawMessage(msg.Data)}
+    // Subscribe to plant summaries (for dashboard overview)
+    nc.Subscribe("plant.*.summary", func(msg *nats.Msg) {
+        wsMsg := models.WSMessage{Type: models.MsgPlantSummary, Payload: json.RawMessage(msg.Data)}
+        data, _ := json.Marshal(wsMsg)
+        h.Broadcast(data)
+    })
+
+    // Subscribe to individual panel readings (for detail view)
+    nc.Subscribe("plant.*.panel.data", func(msg *nats.Msg) {
+        wsMsg := models.WSMessage{Type: models.MsgPanelReading, Payload: json.RawMessage(msg.Data)}
         data, _ := json.Marshal(wsMsg)
         h.Broadcast(data)
     })
