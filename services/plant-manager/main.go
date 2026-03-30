@@ -241,7 +241,108 @@ func main() {
 
 		res, err := es.Search(
 			es.Search.WithContext(context.Background()),
-			es.Search.WithIndex("plant-panel"),
+			es.Search.WithIndex("plant-panel-*"),
+			es.Search.WithBody(&buf),
+		)
+		if err != nil {
+			http.Error(w, "ES query failed", http.StatusInternalServerError)
+			return
+		}
+		defer res.Body.Close()
+
+		w.Header().Set("Content-Type", "application/json")
+		io.Copy(w, res.Body)
+	})
+
+	// Latest summary per plant (for dashboard polling)
+	mux.HandleFunc("GET /api/plants/summary", func(w http.ResponseWriter, r *http.Request) {
+		query := map[string]interface{}{
+			"size": 0,
+			"query": map[string]interface{}{
+				"range": map[string]interface{}{
+					"timestamp": map[string]interface{}{"gte": "now-30s"},
+				},
+			},
+			"aggs": map[string]interface{}{
+				"by_plant": map[string]interface{}{
+					"terms": map[string]interface{}{
+						"field": "plantId",
+						"size":  100,
+					},
+					"aggs": map[string]interface{}{
+						"latest": map[string]interface{}{
+							"top_hits": map[string]interface{}{
+								"size": 1,
+								"sort": []map[string]interface{}{
+									{"timestamp": "desc"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		var buf bytes.Buffer
+		json.NewEncoder(&buf).Encode(query)
+
+		res, err := es.Search(
+			es.Search.WithContext(context.Background()),
+			es.Search.WithIndex("plant-summary-*"),
+			es.Search.WithBody(&buf),
+		)
+		if err != nil {
+			http.Error(w, "ES query failed", http.StatusInternalServerError)
+			return
+		}
+		defer res.Body.Close()
+
+		w.Header().Set("Content-Type", "application/json")
+		io.Copy(w, res.Body)
+	})
+
+	// Latest panel readings for a plant (for detail view polling)
+	mux.HandleFunc("GET /api/plants/{plantId}/panels", func(w http.ResponseWriter, r *http.Request) {
+		plantID := r.PathValue("plantId")
+
+		query := map[string]interface{}{
+			"size": 0,
+			"query": map[string]interface{}{
+				"bool": map[string]interface{}{
+					"filter": []map[string]interface{}{
+						{"term": map[string]interface{}{"plantId": plantID}},
+						{"range": map[string]interface{}{
+							"timestamp": map[string]interface{}{"gte": "now-10s"},
+						}},
+					},
+				},
+			},
+			"aggs": map[string]interface{}{
+				"by_panel": map[string]interface{}{
+					"terms": map[string]interface{}{
+						"field": "panelId",
+						"size":  100,
+					},
+					"aggs": map[string]interface{}{
+						"latest": map[string]interface{}{
+							"top_hits": map[string]interface{}{
+								"size": 1,
+								"sort": []map[string]interface{}{
+									{"timestamp": "desc"},
+								},
+							},
+						},
+					},
+				},
+			},
+		}
+
+		var buf bytes.Buffer
+		json.NewEncoder(&buf).Encode(query)
+
+		res, err := es.Search(
+			es.Search.WithContext(context.Background()),
+			es.Search.WithIndex("plant-panel-*"),
 			es.Search.WithBody(&buf),
 		)
 		if err != nil {
