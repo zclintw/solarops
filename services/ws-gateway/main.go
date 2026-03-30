@@ -44,20 +44,6 @@ func main() {
 
     h := hub.New()
 
-    // Subscribe to plant summaries (for dashboard overview)
-    nc.Subscribe("plant.*.summary", func(msg *nats.Msg) {
-        wsMsg := models.WSMessage{Type: models.MsgPlantSummary, Payload: json.RawMessage(msg.Data)}
-        data, _ := json.Marshal(wsMsg)
-        h.Broadcast(data)
-    })
-
-    // Subscribe to individual panel readings (for detail view)
-    nc.Subscribe("plant.*.panel.data", func(msg *nats.Msg) {
-        wsMsg := models.WSMessage{Type: models.MsgPanelReading, Payload: json.RawMessage(msg.Data)}
-        data, _ := json.Marshal(wsMsg)
-        h.Broadcast(data)
-    })
-
     // Subscribe to plant status — forward registered/unregistered events
     nc.Subscribe("plant.*.status", func(msg *nats.Msg) {
         var info map[string]interface{}
