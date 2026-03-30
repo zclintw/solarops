@@ -11,6 +11,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -179,16 +180,21 @@ func main() {
 			return
 		}
 
+		mode := strings.ToUpper(req.Mode)
+		cmdType := models.CmdFault
+		if mode == "RESET" {
+			cmdType = models.CmdReset
+		}
 		cmd := models.Command{
-			Command:   models.CmdFault,
+			Command:   cmdType,
 			PanelID:   panelID,
-			FaultMode: req.Mode,
+			FaultMode: mode,
 		}
 		cmdBytes, _ := json.Marshal(cmd)
 		nc.Publish(fmt.Sprintf("plant.%s.command", plantID), cmdBytes)
 
 		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "fault triggered"})
+		json.NewEncoder(w).Encode(map[string]string{"status": "command sent"})
 	})
 
 	// History from ES

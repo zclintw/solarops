@@ -11,6 +11,9 @@ function App() {
 
   const powerHistoryRef = useRef<{ time: string; watt: number }[]>([]);
   const lastAggTime = useRef(0);
+  // Use a ref so onMessage never changes reference when plants updates
+  const plantsRef = useRef(plants);
+  plantsRef.current = plants;
 
   const onMessage = useCallback(
     (msg: { type: string; payload: unknown }) => {
@@ -20,7 +23,7 @@ function App() {
         const now = Math.floor(Date.now() / 10000) * 10000;
         if (now > lastAggTime.current) {
           lastAggTime.current = now;
-          const totalWatt = Object.values(plants).reduce(
+          const totalWatt = Object.values(plantsRef.current).reduce(
             (sum, s) => sum + (s.data?.totalWatt || 0),
             0
           );
@@ -34,7 +37,7 @@ function App() {
         }
       }
     },
-    [handleMessage, plants]
+    [handleMessage]
   );
 
   const { send } = useWebSocket(onMessage);

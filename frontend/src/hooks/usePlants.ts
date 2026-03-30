@@ -86,6 +86,14 @@ export function usePlants() {
     return () => clearInterval(interval);
   }, []);
 
+  // Fetch existing alerts on mount
+  useEffect(() => {
+    fetch("/api/alerts")
+      .then((r) => r.json())
+      .then((data: Alert[]) => setAlerts(data))
+      .catch(() => {});
+  }, []);
+
   const removePlant = useCallback((plantId: string) => {
     setPlants((prev) => {
       const next = { ...prev };

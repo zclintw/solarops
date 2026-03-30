@@ -80,6 +80,11 @@ func main() {
 	ticker := time.NewTicker(1 * time.Second)
 	defer ticker.Stop()
 
+	// Heartbeat: re-publish status every 30s so late-joining subscribers discover us
+	statusTicker := time.NewTicker(30 * time.Second)
+	defer statusTicker.Stop()
+	statusSubject := fmt.Sprintf("plant.%s.status", p.ID)
+
 	// Graceful shutdown
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
@@ -88,6 +93,8 @@ func main() {
 
 	for {
 		select {
+		case <-statusTicker.C:
+			nc.Publish(statusSubject, statusMsg)
 		case <-ticker.C:
 			data := p.GenerateData()
 			bytes, _ := json.Marshal(data)
