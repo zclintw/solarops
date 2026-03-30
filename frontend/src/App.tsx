@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useCallback, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { Dashboard } from "./pages/Dashboard";
 import { PlantDetail } from "./pages/PlantDetail";
 import { useWebSocket } from "./hooks/useWebSocket";
@@ -10,32 +10,31 @@ function App() {
     usePlants();
 
   const powerHistoryRef = useRef<{ time: string; watt: number }[]>([]);
-  const lastAggTime = useRef(0);
-  // Use a ref so onMessage never changes reference when plants updates
+  // Use a ref so the interval always reads the latest plants without re-registering
   const plantsRef = useRef(plants);
   plantsRef.current = plants;
+
+  // Sample total watt every 10s from a stable interval — avoids partial-data spikes
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const totalWatt = Object.values(plantsRef.current).reduce(
+        (sum, s) => sum + (s.data?.totalWatt || 0),
+        0
+      );
+      powerHistoryRef.current = [
+        ...powerHistoryRef.current.slice(-59),
+        {
+          time: new Date().toLocaleTimeString(),
+          watt: Math.round(totalWatt),
+        },
+      ];
+    }, 10_000);
+    return () => clearInterval(interval);
+  }, []);
 
   const onMessage = useCallback(
     (msg: { type: string; payload: unknown }) => {
       handleMessage(msg);
-
-      if (msg.type === "PLANT_DATA") {
-        const now = Math.floor(Date.now() / 10000) * 10000;
-        if (now > lastAggTime.current) {
-          lastAggTime.current = now;
-          const totalWatt = Object.values(plantsRef.current).reduce(
-            (sum, s) => sum + (s.data?.totalWatt || 0),
-            0
-          );
-          powerHistoryRef.current = [
-            ...powerHistoryRef.current.slice(-59),
-            {
-              time: new Date(now).toLocaleTimeString(),
-              watt: Math.round(totalWatt),
-            },
-          ];
-        }
-      }
     },
     [handleMessage]
   );

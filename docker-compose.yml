@@ -101,8 +101,8 @@ services:
       dockerfile: services/mock-plant/Dockerfile
     environment:
       - PLANT_NAME=Sunrise Valley
-      - PLANT_PANELS=50
-      - WATT_PER_SEC=300
+      - PLANT_PANELS=5
+      - WATT_PER_SEC=3000
       - NATS_URL=nats://nats:4222
       - LOG_PATH=/var/log/plant/data.log
     volumes:
@@ -126,8 +126,8 @@ services:
       dockerfile: services/mock-plant/Dockerfile
     environment:
       - PLANT_NAME=Golden Ridge
-      - PLANT_PANELS=30
-      - WATT_PER_SEC=250
+      - PLANT_PANELS=4
+      - WATT_PER_SEC=2500
       - NATS_URL=nats://nats:4222
       - LOG_PATH=/var/log/plant/data.log
     volumes:
@@ -151,8 +151,8 @@ services:
       dockerfile: services/mock-plant/Dockerfile
     environment:
       - PLANT_NAME=Blue Horizon
-      - PLANT_PANELS=40
-      - WATT_PER_SEC=280
+      - PLANT_PANELS=6
+      - WATT_PER_SEC=2800
       - NATS_URL=nats://nats:4222
       - LOG_PATH=/var/log/plant/data.log
     volumes:
