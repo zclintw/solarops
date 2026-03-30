@@ -94,6 +94,16 @@ services:
       elasticsearch:
         condition: service_healthy
 
+  aggregator:
+    build:
+      context: .
+      dockerfile: services/aggregator/Dockerfile
+    environment:
+      - ES_URL=http://elasticsearch:9200
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+
   # --- Mock Plants (initial 3) ---
   mock-plant-1:
     build:
