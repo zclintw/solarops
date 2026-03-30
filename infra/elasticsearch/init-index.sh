@@ -5,11 +5,11 @@ until curl -s http://elasticsearch:9200/_cluster/health | grep -q '"status":"gre
   sleep 2
 done
 
-# Create flat panel-reading index template
+# Panel-level readings (written by Fluentd): plant-panel-YYYY-MM-DD
 curl -X PUT "http://elasticsearch:9200/_index_template/plant-panel-template" \
   -H "Content-Type: application/json" \
   -d '{
-  "index_patterns": ["plant-panel*"],
+  "index_patterns": ["plant-panel-*"],
   "template": {
     "settings": {
       "number_of_shards": 1,
@@ -31,4 +31,31 @@ curl -X PUT "http://elasticsearch:9200/_index_template/plant-panel-template" \
 }'
 
 echo ""
-echo "Index template created."
+
+# Plant-level summaries (written by aggregator): plant-summary-YYYY-MM-DD
+curl -X PUT "http://elasticsearch:9200/_index_template/plant-summary-template" \
+  -H "Content-Type: application/json" \
+  -d '{
+  "index_patterns": ["plant-summary-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    },
+    "mappings": {
+      "properties": {
+        "plantId":      { "type": "keyword" },
+        "plantName":    { "type": "keyword" },
+        "timestamp":    { "type": "date" },
+        "totalWatt":    { "type": "float" },
+        "panelCount":   { "type": "integer" },
+        "onlineCount":  { "type": "integer" },
+        "offlineCount": { "type": "integer" },
+        "faultyCount":  { "type": "integer" }
+      }
+    }
+  }
+}'
+
+echo ""
+echo "Index templates created."
