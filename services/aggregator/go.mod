@@ -1,6 +1,6 @@
 module github.com/solarops/aggregator
 
-go 1.26.1
+go 1.25.0
 
 require (
 	github.com/elastic/elastic-transport-go/v8 v8.8.0 // indirect

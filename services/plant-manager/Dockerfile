@@ -7,6 +7,7 @@ COPY services/plant-manager/ ./services/plant-manager/
 COPY services/mock-plant/go.mod ./services/mock-plant/go.mod
 COPY services/ws-gateway/go.mod ./services/ws-gateway/go.mod
 COPY services/alert-service/go.mod ./services/alert-service/go.mod
+COPY services/aggregator/go.mod ./services/aggregator/go.mod
 COPY go.work ./
 
 WORKDIR /build/services/plant-manager

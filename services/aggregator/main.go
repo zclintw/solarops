@@ -24,17 +24,19 @@ func envOrDefault(key, def string) string {
 
 type plantBucket struct {
 	Key      string `json:"key"`
-	SumWatt  struct{ Value float64 } `json:"sum_watt"`
+	AvgWatt  struct{ Value float64 } `json:"avg_watt"`
 	PlantName struct {
 		Buckets []struct{ Key string } `json:"buckets"`
 	} `json:"plant_name"`
 	PanelCount struct{ Value int } `json:"panel_count"`
-	StatusCounts struct {
-		Buckets []struct {
-			Key      string `json:"key"`
-			DocCount int    `json:"doc_count"`
-		} `json:"buckets"`
-	} `json:"status_counts"`
+	OnlinePanels struct {
+		DocCount int `json:"doc_count"`
+		Count    struct{ Value int } `json:"count"`
+	} `json:"online_panels"`
+	OfflinePanels struct {
+		DocCount int `json:"doc_count"`
+		Count    struct{ Value int } `json:"count"`
+	} `json:"offline_panels"`
 	FaultyCount struct{ DocCount int } `json:"faulty_count"`
 }
 
@@ -72,7 +74,7 @@ func aggregate(es *elasticsearch.Client) {
 		"size": 0,
 		"query": map[string]interface{}{
 			"range": map[string]interface{}{
-				"timestamp": map[string]interface{}{"gte": "now-10s"},
+				"@timestamp": map[string]interface{}{"gte": "now-10s"},
 			},
 		},
 		"aggs": map[string]interface{}{
@@ -82,8 +84,8 @@ func aggregate(es *elasticsearch.Client) {
 					"size":  100,
 				},
 				"aggs": map[string]interface{}{
-					"sum_watt": map[string]interface{}{
-						"sum": map[string]interface{}{"field": "watt"},
+					"avg_watt": map[string]interface{}{
+						"avg": map[string]interface{}{"field": "watt"},
 					},
 					"plant_name": map[string]interface{}{
 						"terms": map[string]interface{}{
@@ -94,10 +96,24 @@ func aggregate(es *elasticsearch.Client) {
 					"panel_count": map[string]interface{}{
 						"cardinality": map[string]interface{}{"field": "panelId"},
 					},
-					"status_counts": map[string]interface{}{
-						"terms": map[string]interface{}{
-							"field": "status",
-							"size":  10,
+					"online_panels": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"term": map[string]interface{}{"status": "online"},
+						},
+						"aggs": map[string]interface{}{
+							"count": map[string]interface{}{
+								"cardinality": map[string]interface{}{"field": "panelId"},
+							},
+						},
+					},
+					"offline_panels": map[string]interface{}{
+						"filter": map[string]interface{}{
+							"term": map[string]interface{}{"status": "offline"},
+						},
+						"aggs": map[string]interface{}{
+							"count": map[string]interface{}{
+								"cardinality": map[string]interface{}{"field": "panelId"},
+							},
 						},
 					},
 					"faulty_count": map[string]interface{}{
@@ -160,24 +176,17 @@ func aggregate(es *elasticsearch.Client) {
 			plantName = bucket.PlantName.Buckets[0].Key
 		}
 
-		online, offline := 0, 0
-		for _, s := range bucket.StatusCounts.Buckets {
-			switch s.Key {
-			case "online":
-				online = s.DocCount
-			case "offline":
-				offline = s.DocCount
-			}
-		}
+		panelCount := bucket.PanelCount.Value
+		totalWatt := bucket.AvgWatt.Value * float64(panelCount)
 
 		summary := map[string]interface{}{
 			"plantId":      bucket.Key,
 			"plantName":    plantName,
 			"timestamp":    now.Format(time.RFC3339Nano),
-			"totalWatt":    bucket.SumWatt.Value,
-			"panelCount":   bucket.PanelCount.Value,
-			"onlineCount":  online,
-			"offlineCount": offline,
+			"totalWatt":    totalWatt,
+			"panelCount":   panelCount,
+			"onlineCount":  bucket.OnlinePanels.Count.Value,
+			"offlineCount": bucket.OfflinePanels.Count.Value,
 			"faultyCount":  bucket.FaultyCount.DocCount,
 		}
 
