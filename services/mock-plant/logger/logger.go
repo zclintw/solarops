@@ -5,8 +5,6 @@ import (
 	"fmt"
 	"os"
 	"sync"
-
-	"github.com/solarops/shared/models"
 )
 
 type FileLogger struct {
@@ -22,7 +20,7 @@ func NewFileLogger(path string) (*FileLogger, error) {
 	return &FileLogger{file: f}, nil
 }
 
-func (l *FileLogger) Write(data models.PlantData) error {
+func (l *FileLogger) Write(data any) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 

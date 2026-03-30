@@ -89,27 +89,29 @@ func main() {
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 
-	dataSubject := fmt.Sprintf("plant.%s.data", p.ID)
-
 	for {
 		select {
 		case <-statusTicker.C:
 			nc.Publish(statusSubject, statusMsg)
 		case <-ticker.C:
-			data := p.GenerateData()
-			bytes, _ := json.Marshal(data)
+			readings := p.GeneratePanelReadings()
+			summary := p.GenerateSummary()
 
-			// Publish to NATS
-			if err := nc.Publish(dataSubject, bytes); err != nil {
-				log.Printf("NATS publish error: %v", err)
-			}
-
-			// Write to log file
-			if fileLog != nil {
-				if err := fileLog.Write(data); err != nil {
-					log.Printf("Log write error: %v", err)
+			// Publish each panel reading individually
+			panelSubject := fmt.Sprintf("plant.%s.panel.data", p.ID)
+			for _, reading := range readings {
+				bytes, _ := json.Marshal(reading)
+				nc.Publish(panelSubject, bytes)
+				// Write each panel as separate log line
+				if fileLog != nil {
+					fileLog.Write(reading)
 				}
 			}
+
+			// Publish plant summary
+			summarySubject := fmt.Sprintf("plant.%s.summary", p.ID)
+			summaryBytes, _ := json.Marshal(summary)
+			nc.Publish(summarySubject, summaryBytes)
 
 		case <-sigCh:
 			log.Println("Shutting down...")
