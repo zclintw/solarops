@@ -7,7 +7,7 @@ services:
       - "8222:8222"
     command: ["--js"]
     healthcheck:
-      test: ["CMD", "nats-server", "--signal", "ldm"]
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8222/healthz || exit 1"]
       interval: 5s
       timeout: 3s
       retries: 5
@@ -107,6 +107,7 @@ services:
   mock-plant-1-fluentd:
     build:
       context: infra/fluentd
+    platform: linux/amd64
     volumes:
       - plant-1-logs:/var/log/plant:ro
     depends_on:
@@ -132,6 +133,7 @@ services:
   mock-plant-2-fluentd:
     build:
       context: infra/fluentd
+    platform: linux/amd64
     volumes:
       - plant-2-logs:/var/log/plant:ro
     depends_on:
@@ -157,6 +159,7 @@ services:
   mock-plant-3-fluentd:
     build:
       context: infra/fluentd
+    platform: linux/amd64
     volumes:
       - plant-3-logs:/var/log/plant:ro
     depends_on:
