@@ -1,12 +1,13 @@
 import { useParams, Link } from "react-router-dom";
 import { useEffect, useState } from "react";
-import type { PlantState } from "../types";
+import type { PlantState, PanelReading } from "../types";
 import { PanelGrid } from "../components/PanelGrid";
 import { PowerChart } from "../components/PowerChart";
 
 interface PlantDetailProps {
   plants: Record<string, PlantState>;
   send: (type: string, payload: unknown) => void;
+  updatePanels: (plantId: string, panels: Record<string, PanelReading>) => void;
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -16,11 +17,12 @@ const STATUS_COLORS: Record<string, string> = {
   offline: "#6b7280",
 };
 
-export function PlantDetail({ plants, send }: PlantDetailProps) {
+export function PlantDetail({ plants, send, updatePanels }: PlantDetailProps) {
   const { plantId } = useParams<{ plantId: string }>();
   const state = plantId ? plants[plantId] : undefined;
   const [history, setHistory] = useState<{ time: string; watt: number }[]>([]);
 
+  // Load historical chart data once on mount
   useEffect(() => {
     if (!plantId) return;
     fetch(`/api/plants/${plantId}/history?range=1h&interval=10s`)
@@ -37,17 +39,41 @@ export function PlantDetail({ plants, send }: PlantDetailProps) {
       .catch(console.error);
   }, [plantId]);
 
+  // Append a live data point whenever the summary updates (polled every 3s)
   useEffect(() => {
     if (!state?.summary) return;
-    const now = Math.floor(Date.now() / 10000) * 10000;
     setHistory((prev) => [
       ...prev.slice(-59),
       {
-        time: new Date(now).toLocaleTimeString(),
+        time: new Date().toLocaleTimeString(),
         watt: Math.round(state.summary!.totalWatt),
       },
     ]);
   }, [state?.summary?.timestamp]);
+
+  // Poll panel readings every 2s
+  useEffect(() => {
+    if (!plantId) return;
+    const poll = async () => {
+      try {
+        const res = await fetch(`/api/plants/${plantId}/panels`);
+        const data = await res.json();
+        const buckets: Array<{
+          key: string;
+          latest: { hits: { hits: Array<{ _source: PanelReading }> } };
+        }> = data?.aggregations?.by_panel?.buckets || [];
+        const panels: Record<string, PanelReading> = {};
+        for (const bucket of buckets) {
+          const reading = bucket.latest?.hits?.hits?.[0]?._source;
+          if (reading) panels[reading.panelId] = reading;
+        }
+        updatePanels(plantId, panels);
+      } catch {}
+    };
+    poll();
+    const interval = setInterval(poll, 2_000);
+    return () => clearInterval(interval);
+  }, [plantId, updatePanels]);
 
   if (!state?.summary) {
     return (

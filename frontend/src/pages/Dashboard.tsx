@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { PlantCard } from "../components/PlantCard";
 import { AlertList } from "../components/AlertList";
 import { PowerChart } from "../components/PowerChart";
@@ -9,7 +9,6 @@ interface DashboardProps {
   alerts: Alert[];
   onRemovePlant: (id: string) => void;
   onAcknowledgeAlert: (id: string) => void;
-  powerHistory: { time: string; watt: number }[];
 }
 
 export function Dashboard({
@@ -17,7 +16,6 @@ export function Dashboard({
   alerts,
   onRemovePlant,
   onAcknowledgeAlert,
-  powerHistory,
 }: DashboardProps) {
   const plantEntries = Object.entries(plants);
 
@@ -29,6 +27,16 @@ export function Dashboard({
       ),
     [plantEntries]
   );
+
+  const [powerHistory, setPowerHistory] = useState<{ time: string; watt: number }[]>([]);
+
+  useEffect(() => {
+    if (totalWatt === 0 && plantEntries.length === 0) return;
+    setPowerHistory((prev) => [
+      ...prev.slice(-59),
+      { time: new Date().toLocaleTimeString(), watt: Math.round(totalWatt) },
+    ]);
+  }, [totalWatt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
