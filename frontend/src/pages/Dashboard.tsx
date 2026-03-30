@@ -28,15 +28,21 @@ export function Dashboard({
     [plantEntries]
   );
 
+  // lastSeen changes on every poll even when totalWatt stays constant
+  const lastSeen = useMemo(
+    () => Math.max(0, ...plantEntries.map(([, s]) => s.lastSeen)),
+    [plantEntries]
+  );
+
   const [powerHistory, setPowerHistory] = useState<{ time: string; watt: number }[]>([]);
 
   useEffect(() => {
-    if (totalWatt === 0 && plantEntries.length === 0) return;
+    if (plantEntries.length === 0) return;
     setPowerHistory((prev) => [
       ...prev.slice(-59),
       { time: new Date().toLocaleTimeString(), watt: Math.round(totalWatt) },
     ]);
-  }, [totalWatt]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [lastSeen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
