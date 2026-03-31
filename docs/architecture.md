@@ -1,6 +1,6 @@
 # SolarOps 系統架構文件
 
-> 最後更新：2026-03-30
+> 最後更新：2026-03-31
 
 ## 系統概覽
 
@@ -84,7 +84,7 @@ graph TB
     FD3 -->|"plant-panel-YYYY-MM-DD"| ES
 
     AS -->|"訂閱 plant.*.panel.data"| NATS
-    AS -->|"發布 alert.new / alert.resolved"| NATS
+    AS -->|"發布 alert.new"| NATS
 
     WS -->|"訂閱 plant.*.status"| NATS
     WS -->|"訂閱 alert.>"| NATS
@@ -191,7 +191,6 @@ sequenceDiagram
 | `plant.{id}.panel.data` | mock-plant → NATS | 每秒每面板讀值（PanelReading） |
 | `plant.{id}.command` | NATS → mock-plant | 操控指令：OFFLINE / ONLINE / RESET / FAULT |
 | `alert.new` | alert-service → NATS | 新告警觸發 |
-| `alert.resolved` | alert-service → NATS | 告警解除 |
 
 ---
 
@@ -260,6 +259,39 @@ ILM policy 由 `es-init` 容器在啟動時建立，新建的 index 自動套用
 | `GET` | `/api/plants/{plantId}/panels` | 面板詳情輪詢：查 `plant-panel-*` top_hits |
 | `GET` | `/api/plants/{plantId}/history` | 歷史功率曲線：date_histogram |
 | `POST` | `/api/plants/{plantId}/panels/{panelId}/fault` | 觸發面板故障指令 |
+
+---
+
+## Alert Service API
+
+| Method | Path | 說明 |
+|--------|------|------|
+| `GET` | `/api/alerts` | 列出告警，可加 `?status=active\|acknowledged` 過濾 |
+| `POST` | `/api/alerts/{id}/acknowledge` | 確認告警（active → acknowledged） |
+| `POST` | `/api/alerts/{id}/resolve` | 解除告警（從 store 刪除） |
+
+### 告警偵測規則
+
+偵測器對每個面板保留最新 20 筆讀值（滑動視窗），每次收到新讀值後執行檢查：
+
+| 告警類型 | 觸發條件 | 參數 |
+|---------|---------|------|
+| `PANEL_FAULT` | 末尾連續 0W 讀值達閾值 | 3 次 |
+| `PANEL_DEGRADED` | 視窗首筆→末筆發電量下降比例超閾值 | ≥ 30% |
+| `PANEL_UNSTABLE` | 視窗內 0W ↔ 非 0W 翻轉次數超閾值 | ≥ 5 次 |
+
+相同 `(plantId, panelId, type)` 組合若已有 active/acknowledged 告警，則不重複建立。
+
+### 告警工作流程
+
+```mermaid
+stateDiagram-v2
+    [*] --> active : 偵測器觸發（Detector.Check）
+    active --> acknowledged : 使用者按 ACK
+    acknowledged --> [*] : 使用者按 Resolved（從 store 刪除）
+```
+
+> **注意**：`alert.resolved` NATS 主題目前未使用——告警解除僅透過 REST API 手動操作，不會自動廣播至前端。ws-gateway 已訂閱該主題備用，待未來實作自動解除邏輯時可啟用。
 
 ---
 
