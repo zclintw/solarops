@@ -9,6 +9,7 @@ interface DashboardProps {
   alerts: Alert[];
   onRemovePlant: (id: string) => void;
   onAcknowledgeAlert: (id: string) => void;
+  onResolveAlert: (id: string) => void;
 }
 
 export function Dashboard({
@@ -16,6 +17,7 @@ export function Dashboard({
   alerts,
   onRemovePlant,
   onAcknowledgeAlert,
+  onResolveAlert,
 }: DashboardProps) {
   const plantEntries = Object.entries(plants);
 
@@ -120,7 +122,7 @@ export function Dashboard({
         <h2 style={{ margin: 0, padding: 16, fontSize: 16, borderBottom: "1px solid #333" }}>
           Alerts
         </h2>
-        <AlertList alerts={alerts} onAcknowledge={onAcknowledgeAlert} />
+        <AlertList alerts={alerts} onAcknowledge={onAcknowledgeAlert} onResolve={onResolveAlert} />
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import type { Alert } from "../types";
 interface AlertListProps {
   alerts: Alert[];
   onAcknowledge: (id: string) => void;
+  onResolve: (id: string) => void;
 }
 
 const TYPE_COLORS: Record<string, string> = {
@@ -12,7 +13,7 @@ const TYPE_COLORS: Record<string, string> = {
   DATA_GAP: "#6b7280",
 };
 
-export function AlertList({ alerts, onAcknowledge }: AlertListProps) {
+export function AlertList({ alerts, onAcknowledge, onResolve }: AlertListProps) {
   const activeAlerts = alerts.filter((a) => a.status !== "resolved");
 
   if (activeAlerts.length === 0) {
@@ -74,6 +75,23 @@ export function AlertList({ alerts, onAcknowledge }: AlertListProps) {
                 }}
               >
                 ACK
+              </button>
+            )}
+            {alert.status === "acknowledged" && (
+              <button
+                onClick={() => onResolve(alert.id)}
+                style={{
+                  padding: "2px 8px",
+                  fontSize: 12,
+                  backgroundColor: "#22c55e",
+                  border: "none",
+                  borderRadius: 4,
+                  color: "#000",
+                  cursor: "pointer",
+                  fontWeight: "bold",
+                }}
+              >
+                Resolved
               </button>
             )}
           </div>

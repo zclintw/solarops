@@ -136,6 +136,11 @@ export function usePlants() {
     );
   }, []);
 
+  const resolveAlert = useCallback(async (alertId: string) => {
+    await fetch(`/api/alerts/${alertId}/resolve`, { method: "POST" });
+    setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+  }, []);
+
   // Update panels for a specific plant (called by PlantDetail)
   const updatePanels = useCallback((plantId: string, panels: Record<string, PanelReading>) => {
     setPlants((prev) => {
@@ -145,5 +150,5 @@ export function usePlants() {
     });
   }, []);
 
-  return { plants, alerts, handleMessage, removePlant, acknowledgeAlert, updatePanels };
+  return { plants, alerts, handleMessage, removePlant, acknowledgeAlert, resolveAlert, updatePanels };
 }

@@ -79,6 +79,16 @@ func main() {
 		}
 	})
 
+	mux.HandleFunc("POST /api/alerts/{id}/resolve", func(w http.ResponseWriter, r *http.Request) {
+		id := r.PathValue("id")
+		if alertStore.Delete(id) {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{"status": "resolved"})
+		} else {
+			http.Error(w, "alert not found", http.StatusNotFound)
+		}
+	})
+
 	mux.HandleFunc("GET /health", func(w http.ResponseWriter, r *http.Request) {
 		w.Write([]byte("ok"))
 	})

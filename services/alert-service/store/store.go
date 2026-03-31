@@ -76,6 +76,16 @@ func (s *Store) FindActive(plantID, panelID, alertType string) (models.Alert, bo
     return models.Alert{}, false
 }
 
+func (s *Store) Delete(id string) bool {
+    s.mu.Lock()
+    defer s.mu.Unlock()
+    if _, ok := s.alerts[id]; !ok {
+        return false
+    }
+    delete(s.alerts, id)
+    return true
+}
+
 func (s *Store) List(statusFilter string) []models.Alert {
     s.mu.RLock()
     defer s.mu.RUnlock()

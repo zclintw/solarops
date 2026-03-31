@@ -6,7 +6,7 @@ import { useWebSocket } from "./hooks/useWebSocket";
 import { usePlants } from "./hooks/usePlants";
 
 function App() {
-  const { plants, alerts, handleMessage, removePlant, acknowledgeAlert, updatePanels } =
+  const { plants, alerts, handleMessage, removePlant, acknowledgeAlert, resolveAlert, updatePanels } =
     usePlants();
 
   const onMessage = useCallback(
@@ -52,6 +52,7 @@ function App() {
                 alerts={alerts}
                 onRemovePlant={removePlant}
                 onAcknowledgeAlert={acknowledgeAlert}
+                onResolveAlert={resolveAlert}
               />
             }
           />
