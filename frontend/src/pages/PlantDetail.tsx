@@ -99,6 +99,17 @@ export function PlantDetail({ plants, send, updatePanels }: PlantDetailProps) {
     send("PANEL_RESET", { plantId, panelId });
   };
 
+  // NOTE: Fault uses REST directly (not WebSocket→NATS like ON/OFF/Reset).
+  // This is intentional for dev/testing convenience only — in production,
+  // fault injection should go through the same command channel as other panel ops.
+  const handleFault = (panelId: string, mode: string) => {
+    fetch(`/api/plants/${plantId}/panels/${panelId}/fault`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ mode }),
+    }).catch(console.error);
+  };
+
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
       <Link to="/" style={{ color: "#888", textDecoration: "none" }}>
@@ -160,6 +171,7 @@ export function PlantDetail({ plants, send, updatePanels }: PlantDetailProps) {
           panels={panelList}
           onToggle={handleToggle}
           onReset={handleReset}
+          onFault={handleFault}
         />
       </div>
     </div>

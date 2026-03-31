@@ -95,7 +95,6 @@ func main() {
 			nc.Publish(statusSubject, statusMsg)
 		case <-ticker.C:
 			readings := p.GeneratePanelReadings()
-			summary := p.GenerateSummary()
 
 			// Publish each panel reading individually
 			panelSubject := fmt.Sprintf("plant.%s.panel.data", p.ID)
@@ -107,11 +106,8 @@ func main() {
 					fileLog.Write(reading)
 				}
 			}
-
-			// Publish plant summary
-			summarySubject := fmt.Sprintf("plant.%s.summary", p.ID)
-			summaryBytes, _ := json.Marshal(summary)
-			nc.Publish(summarySubject, summaryBytes)
+			// plant.{id}.summary removed: no consumers, aggregation is done by the
+			// aggregator service querying Elasticsearch every 10s.
 
 		case <-sigCh:
 			log.Println("Shutting down...")

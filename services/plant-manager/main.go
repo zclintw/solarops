@@ -216,7 +216,7 @@ func main() {
 					"filter": []map[string]interface{}{
 						{"term": map[string]interface{}{"plantId": plantID}},
 						{"range": map[string]interface{}{
-							"timestamp": map[string]interface{}{"gte": "now-" + rangeParam},
+							"@timestamp": map[string]interface{}{"gte": "now-" + rangeParam},
 						}},
 					},
 				},
@@ -224,7 +224,7 @@ func main() {
 			"aggs": map[string]interface{}{
 				"over_time": map[string]interface{}{
 					"date_histogram": map[string]interface{}{
-						"field":          "timestamp",
+						"field":          "@timestamp",
 						"fixed_interval": interval,
 					},
 					"aggs": map[string]interface{}{
@@ -260,7 +260,7 @@ func main() {
 			"size": 0,
 			"query": map[string]interface{}{
 				"range": map[string]interface{}{
-					"timestamp": map[string]interface{}{"gte": "now-30s"},
+					"@timestamp": map[string]interface{}{"gte": "now-30s"},
 				},
 			},
 			"aggs": map[string]interface{}{
@@ -274,7 +274,7 @@ func main() {
 							"top_hits": map[string]interface{}{
 								"size": 1,
 								"sort": []map[string]interface{}{
-									{"timestamp": "desc"},
+									{"@timestamp": "desc"},
 								},
 							},
 						},

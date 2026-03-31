@@ -182,6 +182,7 @@ func aggregate(es *elasticsearch.Client) {
 		summary := map[string]interface{}{
 			"plantId":      bucket.Key,
 			"plantName":    plantName,
+			"@timestamp":   now.Format(time.RFC3339Nano),
 			"timestamp":    now.Format(time.RFC3339Nano),
 			"totalWatt":    totalWatt,
 			"panelCount":   panelCount,

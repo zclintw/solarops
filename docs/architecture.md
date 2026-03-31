@@ -189,7 +189,6 @@ sequenceDiagram
 |------|------|------|
 | `plant.{id}.status` | mock-plant → NATS | 植物上線狀態，啟動時 + 每 30s 心跳 |
 | `plant.{id}.panel.data` | mock-plant → NATS | 每秒每面板讀值（PanelReading） |
-| `plant.{id}.summary` | mock-plant → NATS | 每秒植物摘要（*目前未被消費，保留備用*） |
 | `plant.{id}.command` | NATS → mock-plant | 操控指令：OFFLINE / ONLINE / RESET / FAULT |
 | `alert.new` | alert-service → NATS | 新告警觸發 |
 | `alert.resolved` | alert-service → NATS | 告警解除 |
@@ -204,7 +203,8 @@ sequenceDiagram
 
 | 欄位 | 類型 | 說明 |
 |------|------|------|
-| `@timestamp` | date | Fluentd 事件時間（原始 timestamp） |
+| `@timestamp` | date | Fluentd 事件時間，供 ES/Kibana 查詢使用 |
+| `timestamp` | date | PanelReading struct 原始時間，供前端 TypeScript 使用 |
 | `plantId` | keyword | 植物 UUID |
 | `plantName` | keyword | 植物名稱 |
 | `panelId` | keyword | 面板 UUID |
@@ -219,7 +219,8 @@ sequenceDiagram
 
 | 欄位 | 類型 | 說明 |
 |------|------|------|
-| `timestamp` | date | 聚合時間 |
+| `@timestamp` | date | 聚合時間，供 ES/Kibana 查詢使用 |
+| `timestamp` | date | 聚合時間，供前端 TypeScript 使用（與 @timestamp 同值） |
 | `plantId` | keyword | 植物 UUID |
 | `plantName` | keyword | 植物名稱 |
 | `totalWatt` | float | 瞬間總發電量（avg_watt × panelCount） |
@@ -227,6 +228,24 @@ sequenceDiagram
 | `onlineCount` | integer | 線上面板數 |
 | `offlineCount` | integer | 離線面板數 |
 | `faultyCount` | integer | 故障面板數 |
+
+### 時間欄位說明
+
+兩個 index 都同時保有 `@timestamp` 和 `timestamp`：
+- **`@timestamp`**：ES 生態系標準欄位，Kibana、ILM、跨 index 查詢預設使用
+- **`timestamp`**：前端 TypeScript 友善名稱（`summary.timestamp` vs `summary["@timestamp"]`）
+
+---
+
+## 資料生命週期（ILM）
+
+| Index Pattern | 保留天數 | 估計資料量 |
+|---------------|---------|-----------|
+| `plant-panel-*` | 7 天 | ~130 萬筆/天（3 廠 × 5 面板 × 86400 秒） |
+| `plant-summary-*` | 30 天 | ~26000 筆/天（3 廠 × 8640 筆/10 秒） |
+
+ILM policy 由 `es-init` 容器在啟動時建立，新建的 index 自動套用。
+修改 template 不影響既有 index；開發環境可用 `docker compose down -v` 重建使其生效。
 
 ---
 
