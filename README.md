@@ -27,7 +27,7 @@ A solar plant real-time monitoring platform, built as a learning/practice MVP us
 ```
 mock-plant ──→ NATS ──→ alert-service (real-time detection)
      │                    ws-gateway (WebSocket bridge)
-     │                    plant-manager (registry + API)
+     │                    plant-manager (ES query gateway)
      └──→ Fluentd ──→ Elasticsearch ←── aggregator (10s summary)
                               ↑
                          frontend (React, polls REST + WebSocket)
