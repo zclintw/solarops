@@ -84,7 +84,7 @@ graph TB
     FD3 -->|"plant-panel-YYYY-MM-DD"| ES
 
     AS -->|"訂閱 plant.*.panel.data"| NATS
-    AS -->|"發布 alert.new"| NATS
+    AS -->|"發布 alert.new / alert.resolved"| NATS
 
     WS -->|"訂閱 plant.*.status"| NATS
     WS -->|"訂閱 alert.>"| NATS
@@ -104,7 +104,7 @@ graph TB
     DASH -->|"GET /api/plants/summary\n每 3s"| FE
     DETAIL -->|"GET /api/plants/{id}/panels\n每 2s"| FE
     DETAIL -->|"GET /api/plants/{id}/history"| FE
-    WS_CONN -->|"WebSocket /ws"| FE
+    WS_CONN -->|"WebSocket /ws\n事件接收 + 指令發送"| FE
 ```
 
 ---
@@ -162,8 +162,10 @@ sequenceDiagram
 
     Browser->>Nginx: WebSocket /ws
     Nginx->>WS: 升級
-    NATS-->>WS: alert.new / plant.*.status
-    WS-->>Browser: ALERT_NEW / PLANT_REGISTERED 事件
+    NATS-->>WS: alert.new / alert.resolved / plant.*.status
+    WS-->>Browser: ALERT_NEW / ALERT_RESOLVED / PLANT_REGISTERED 事件
+    Browser->>WS: PANEL_OFFLINE / PANEL_ONLINE / PANEL_RESET 指令
+    WS->>NATS: plant.{id}.command
 ```
 
 ### 4. 告警偵測流程
@@ -191,6 +193,7 @@ sequenceDiagram
 | `plant.{id}.panel.data` | mock-plant → NATS | 每秒每面板讀值（PanelReading） |
 | `plant.{id}.command` | NATS → mock-plant | 操控指令：OFFLINE / ONLINE / RESET / FAULT |
 | `alert.new` | alert-service → NATS | 新告警觸發 |
+| `alert.resolved` | alert-service → NATS | 告警解除（手動 resolve 時發布） |
 
 ---
 
@@ -291,7 +294,7 @@ stateDiagram-v2
     acknowledged --> [*] : 使用者按 Resolved（從 store 刪除）
 ```
 
-> **注意**：`alert.resolved` NATS 主題目前未使用——告警解除僅透過 REST API 手動操作，不會自動廣播至前端。ws-gateway 已訂閱該主題備用，待未來實作自動解除邏輯時可啟用。
+> 使用者按 Resolved 時，alert-service 從 store 刪除告警並發布 `alert.resolved` 到 NATS，ws-gateway 廣播 `ALERT_RESOLVED` 至所有連線的瀏覽器分頁。
 
 ---
 
@@ -383,3 +386,56 @@ solarops/
     ├── elasticsearch/           # Index template 初始化腳本
     └── fluentd/                 # fluent.conf + Dockerfile
 ```
+
+---
+
+## MVP 已知限制與設計取捨
+
+本專案定位為 MVP（Minimum Viable Product），以下項目是刻意的設計取捨，非遺漏。
+後續迭代可依優先順序逐步改善。
+
+### 無持久化（Alert Store / Plant Registry）
+
+- Alert-service 使用 in-memory `map[string]*Alert`，重啟後告警消失。
+- Plant-manager 的 registry 同為 in-memory，重啟後需等待各電廠心跳重新註冊（≤ 30s）。
+- **MVP 理由**：單人開發環境重啟頻率低，持久化引入 Redis/ES 寫入會增加複雜度。
+- **未來方向**：告警寫入 ES（`alert-YYYY-MM-DD` index），registry 寫入 Redis。
+
+### 雙資料路徑（NATS + Fluentd）
+
+- 面板資料同時經由兩條路徑：NATS（即時，供 alert-service）與 log → Fluentd → ES（buffered，供查詢）。
+- 兩條路徑有 1~2 秒時間差，若 Fluentd 崩潰會靜默丟失 ES 資料。
+- **MVP 理由**：職責分離明確——NATS 負責即時事件、Fluentd 負責日誌採集與 ES 寫入。合併為單一路徑需重新設計 ingestion 層。
+- **未來方向**：評估由 Go 服務直接訂閱 NATS 寫入 ES，移除 Fluentd 依賴。
+
+### 動態電廠缺少 Fluentd sidecar
+
+- `POST /api/plants` 只啟動 mock-plant container，不建立配對的 Fluentd sidecar。
+- 動態電廠僅有 NATS 事件，ES 無資料，面板詳情頁空白。
+- **MVP 理由**：動態 Fluentd 配置需要 template 引擎或 sidecar injector，超出 MVP 範圍。
+- **未來方向**：plant-manager 動態啟動 Fluentd sidecar，或改用 NATS→ES 直寫。
+
+### Docker Socket 掛載
+
+- Plant-manager 掛載 `/var/run/docker.sock` 以動態管理 container，等同 root 權限。
+- **MVP 理由**：本地開發環境，無外部存取。生產環境不會使用此模式。
+- **未來方向**：改用 Kubernetes CRD 或 Docker API over TLS。
+
+### 無 API 認證
+
+- 所有 REST endpoint 和 WebSocket 無認證/授權。
+- **MVP 理由**：靠 Docker network 隔離，前端 Nginx 僅代理必要路徑。
+- **未來方向**：加入 JWT 或 API key 認證。
+
+### 前端 Staleness 判斷
+
+- 植物上下線狀態由前端 `Date.now()` 計時器判斷（30s → stale、90s → offline）。
+- 瀏覽器 Tab 進入背景時 `setInterval` 頻率降低，計時不精確。
+- **MVP 理由**：單人使用場景，Tab 切換後回來會自動校正。
+- **未來方向**：Server-side 植物狀態管理，前端僅展示。
+
+### NATS JetStream 啟用但未使用
+
+- Docker Compose 的 NATS 以 `-js` 啟動，但所有服務使用 basic pub/sub。
+- **MVP 理由**：預留擴展空間，JetStream 額外記憶體消耗極低（數 MB）。
+- **未來方向**：告警持久化、訊息回放等功能可改用 JetStream stream。

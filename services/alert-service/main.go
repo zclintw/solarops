@@ -81,7 +81,9 @@ func main() {
 
 	mux.HandleFunc("POST /api/alerts/{id}/resolve", func(w http.ResponseWriter, r *http.Request) {
 		id := r.PathValue("id")
-		if alertStore.Delete(id) {
+		if alert, ok := alertStore.Delete(id); ok {
+			alertJSON, _ := json.Marshal(alert)
+			nc.Publish("alert.resolved", alertJSON)
 			w.Header().Set("Content-Type", "application/json")
 			json.NewEncoder(w).Encode(map[string]string{"status": "resolved"})
 		} else {

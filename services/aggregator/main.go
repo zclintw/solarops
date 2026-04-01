@@ -23,8 +23,8 @@ func envOrDefault(key, def string) string {
 }
 
 type plantBucket struct {
-	Key      string `json:"key"`
-	AvgWatt  struct{ Value float64 } `json:"avg_watt"`
+	Key       string `json:"key"`
+	TotalWatt struct{ Value float64 } `json:"total_watt"`
 	PlantName struct {
 		Buckets []struct{ Key string } `json:"buckets"`
 	} `json:"plant_name"`
@@ -84,8 +84,21 @@ func aggregate(es *elasticsearch.Client) {
 					"size":  100,
 				},
 				"aggs": map[string]interface{}{
-					"avg_watt": map[string]interface{}{
-						"avg": map[string]interface{}{"field": "watt"},
+					"by_panel": map[string]interface{}{
+						"terms": map[string]interface{}{
+							"field": "panelId",
+							"size":  200,
+						},
+						"aggs": map[string]interface{}{
+							"avg_watt": map[string]interface{}{
+								"avg": map[string]interface{}{"field": "watt"},
+							},
+						},
+					},
+					"total_watt": map[string]interface{}{
+						"sum_bucket": map[string]interface{}{
+							"buckets_path": "by_panel>avg_watt",
+						},
 					},
 					"plant_name": map[string]interface{}{
 						"terms": map[string]interface{}{
@@ -177,7 +190,7 @@ func aggregate(es *elasticsearch.Client) {
 		}
 
 		panelCount := bucket.PanelCount.Value
-		totalWatt := bucket.AvgWatt.Value * float64(panelCount)
+		totalWatt := bucket.TotalWatt.Value
 
 		summary := map[string]interface{}{
 			"plantId":      bucket.Key,
