@@ -10,14 +10,11 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"strconv"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/elastic/go-elasticsearch/v8"
-	dockerclient "github.com/moby/moby/client"
-	"github.com/moby/moby/api/types/container"
 	"github.com/nats-io/nats.go"
 	"github.com/solarops/plant-manager/manager"
 	"github.com/solarops/shared/models"
@@ -34,8 +31,6 @@ func main() {
 	natsURL := envOrDefault("NATS_URL", nats.DefaultURL)
 	esURL := envOrDefault("ES_URL", "http://localhost:9200")
 	addr := envOrDefault("LISTEN_ADDR", ":8082")
-	mockPlantImage := envOrDefault("MOCK_PLANT_IMAGE", "solarops-mock-plant")
-	networkName := envOrDefault("DOCKER_NETWORK", "solarops_default")
 
 	// Connect to NATS
 	nc, err := nats.Connect(natsURL,
@@ -56,13 +51,6 @@ func main() {
 		log.Fatalf("ES connect: %v", err)
 	}
 
-	// Connect to Docker
-	docker, err := dockerclient.NewClientWithOpts(dockerclient.FromEnv, dockerclient.WithAPIVersionNegotiation())
-	if err != nil {
-		log.Fatalf("Docker connect: %v", err)
-	}
-	defer docker.Close()
-
 	registry := manager.NewRegistry()
 
 	// Track plants from NATS status messages
@@ -72,7 +60,7 @@ func main() {
 			return
 		}
 		if info.PlantID != "" && info.PlantName != "" {
-			registry.Add(info.PlantID, info.PlantName, info.Panels, info.WattPerSec, "")
+			registry.Add(info.PlantID, info.PlantName, info.Panels, info.WattPerSec)
 			log.Printf("Plant registered via NATS: %s (%s)", info.PlantName, info.PlantID)
 		}
 	})
@@ -83,88 +71,6 @@ func main() {
 	mux.HandleFunc("GET /api/plants", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(registry.List())
-	})
-
-	// Create plant
-	mux.HandleFunc("POST /api/plants", func(w http.ResponseWriter, r *http.Request) {
-		var req struct {
-			Name       string  `json:"name"`
-			Panels     int     `json:"panels"`
-			WattPerSec float64 `json:"wattPerSec"`
-		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request", http.StatusBadRequest)
-			return
-		}
-
-		if registry.NameExists(req.Name) {
-			http.Error(w, "plant name already exists", http.StatusConflict)
-			return
-		}
-
-		// Start new container
-		ctx := context.Background()
-		result, err := docker.ContainerCreate(ctx, dockerclient.ContainerCreateOptions{
-			Image: mockPlantImage,
-			Config: &container.Config{
-				Env: []string{
-					"PLANT_NAME=" + req.Name,
-					"PLANT_PANELS=" + strconv.Itoa(req.Panels),
-					"WATT_PER_SEC=" + fmt.Sprintf("%.0f", req.WattPerSec),
-					"NATS_URL=" + natsURL,
-					"LOG_PATH=/var/log/plant/data.log",
-				},
-			},
-			HostConfig: &container.HostConfig{},
-			Name:       "solarops-plant-" + req.Name,
-		})
-		if err != nil {
-			log.Printf("Container create error: %v", err)
-			http.Error(w, "failed to create plant container", http.StatusInternalServerError)
-			return
-		}
-
-		// Connect to network
-		docker.NetworkConnect(ctx, networkName, dockerclient.NetworkConnectOptions{
-			Container: result.ID,
-		})
-
-		if _, err := docker.ContainerStart(ctx, result.ID, dockerclient.ContainerStartOptions{}); err != nil {
-			log.Printf("Container start error: %v", err)
-			http.Error(w, "failed to start plant container", http.StatusInternalServerError)
-			return
-		}
-
-		log.Printf("Started new plant container: %s (%s)", req.Name, result.ID[:12])
-
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(http.StatusCreated)
-		json.NewEncoder(w).Encode(map[string]string{
-			"containerId": result.ID[:12],
-			"name":        req.Name,
-			"status":      "starting",
-		})
-	})
-
-	// Delete plant
-	mux.HandleFunc("DELETE /api/plants/{plantId}", func(w http.ResponseWriter, r *http.Request) {
-		plantID := r.PathValue("plantId")
-		entry, ok := registry.Remove(plantID)
-		if !ok {
-			http.Error(w, "plant not found", http.StatusNotFound)
-			return
-		}
-
-		if entry.ContainerID != "" {
-			ctx := context.Background()
-			timeout := 10
-			docker.ContainerStop(ctx, entry.ContainerID, dockerclient.ContainerStopOptions{Timeout: &timeout})
-			docker.ContainerRemove(ctx, entry.ContainerID, dockerclient.ContainerRemoveOptions{})
-			log.Printf("Removed plant container: %s", entry.PlantName)
-		}
-
-		w.WriteHeader(http.StatusOK)
-		json.NewEncoder(w).Encode(map[string]string{"status": "removed"})
 	})
 
 	// Trigger fault via NATS

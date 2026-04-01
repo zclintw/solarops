@@ -5,11 +5,10 @@ import (
 )
 
 type PlantEntry struct {
-	PlantID     string  `json:"plantId"`
-	PlantName   string  `json:"plantName"`
-	Panels      int     `json:"panels"`
-	WattPerSec  float64 `json:"wattPerSec"`
-	ContainerID string  `json:"containerId"`
+	PlantID    string  `json:"plantId"`
+	PlantName  string  `json:"plantName"`
+	Panels     int     `json:"panels"`
+	WattPerSec float64 `json:"wattPerSec"`
 }
 
 type Registry struct {
@@ -23,27 +22,15 @@ func NewRegistry() *Registry {
 	}
 }
 
-func (r *Registry) Add(plantID, name string, panels int, wattPerSec float64, containerID string) {
+func (r *Registry) Add(plantID, name string, panels int, wattPerSec float64) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	r.plants[plantID] = &PlantEntry{
-		PlantID:     plantID,
-		PlantName:   name,
-		Panels:      panels,
-		WattPerSec:  wattPerSec,
-		ContainerID: containerID,
+		PlantID:    plantID,
+		PlantName:  name,
+		Panels:     panels,
+		WattPerSec: wattPerSec,
 	}
-}
-
-func (r *Registry) Remove(plantID string) (PlantEntry, bool) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-	p, ok := r.plants[plantID]
-	if !ok {
-		return PlantEntry{}, false
-	}
-	delete(r.plants, plantID)
-	return *p, true
 }
 
 func (r *Registry) Get(plantID string) (PlantEntry, bool) {
@@ -54,17 +41,6 @@ func (r *Registry) Get(plantID string) (PlantEntry, bool) {
 		return PlantEntry{}, false
 	}
 	return *p, true
-}
-
-func (r *Registry) NameExists(name string) bool {
-	r.mu.RLock()
-	defer r.mu.RUnlock()
-	for _, p := range r.plants {
-		if p.PlantName == name {
-			return true
-		}
-	}
-	return false
 }
 
 func (r *Registry) List() []PlantEntry {

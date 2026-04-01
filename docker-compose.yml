@@ -84,10 +84,6 @@ services:
       - NATS_URL=nats://nats:4222
       - ES_URL=http://elasticsearch:9200
       - LISTEN_ADDR=:8082
-      - MOCK_PLANT_IMAGE=solarops-mock-plant
-      - DOCKER_NETWORK=solarops_default
-    volumes:
-      - /var/run/docker.sock:/var/run/docker.sock
     depends_on:
       nats:
         condition: service_healthy
