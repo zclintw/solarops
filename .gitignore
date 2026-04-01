@@ -17,6 +17,9 @@ node_modules/
 .idea/
 .vscode/
 
+# Planning docs (local only)
+docs/plans/
+
 # OS
 .DS_Store
 
