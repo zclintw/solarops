@@ -37,40 +37,54 @@ type plantBucket struct {
 		DocCount int `json:"doc_count"`
 		Count    struct{ Value int } `json:"count"`
 	} `json:"offline_panels"`
-	FaultyCount struct{ DocCount int } `json:"faulty_count"`
+	FaultyCount struct {
+		DocCount int `json:"doc_count"`
+	} `json:"faulty_count"`
 }
 
-func main() {
-	esURL := envOrDefault("ES_URL", "http://localhost:9200")
-	interval := 10 * time.Second
+type plantSummary struct {
+	PlantID      string  `json:"plantId"`
+	PlantName    string  `json:"plantName"`
+	Timestamp    string  `json:"@timestamp"`
+	TimestampAlt string  `json:"timestamp"`
+	TotalWatt    float64 `json:"totalWatt"`
+	PanelCount   int     `json:"panelCount"`
+	OnlineCount  int     `json:"onlineCount"`
+	OfflineCount int     `json:"offlineCount"`
+	FaultyCount  int     `json:"faultyCount"`
+}
 
-	es, err := elasticsearch.NewClient(elasticsearch.Config{
-		Addresses: []string{esURL},
-	})
-	if err != nil {
-		log.Fatalf("ES connect: %v", err)
-	}
-	log.Printf("Aggregator started (ES: %s, interval: %s)", esURL, interval)
-
-	ticker := time.NewTicker(interval)
-	defer ticker.Stop()
-
-	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-
-	for {
-		select {
-		case <-ticker.C:
-			aggregate(es)
-		case <-sigCh:
-			log.Println("Shutting down...")
-			return
+func parseBuckets(raw []json.RawMessage, now time.Time) []plantSummary {
+	ts := now.Format(time.RFC3339Nano)
+	var summaries []plantSummary
+	for _, r := range raw {
+		var bucket plantBucket
+		if err := json.Unmarshal(r, &bucket); err != nil {
+			continue
 		}
+
+		plantName := ""
+		if len(bucket.PlantName.Buckets) > 0 {
+			plantName = bucket.PlantName.Buckets[0].Key
+		}
+
+		summaries = append(summaries, plantSummary{
+			PlantID:      bucket.Key,
+			PlantName:    plantName,
+			Timestamp:    ts,
+			TimestampAlt: ts,
+			TotalWatt:    bucket.TotalWatt.Value,
+			PanelCount:   bucket.PanelCount.Value,
+			OnlineCount:  bucket.OnlinePanels.Count.Value,
+			OfflineCount: bucket.OfflinePanels.Count.Value,
+			FaultyCount:  bucket.FaultyCount.DocCount,
+		})
 	}
+	return summaries
 }
 
-func aggregate(es *elasticsearch.Client) {
-	query := map[string]interface{}{
+func buildQuery() map[string]interface{} {
+	return map[string]interface{}{
 		"size": 0,
 		"query": map[string]interface{}{
 			"range": map[string]interface{}{
@@ -138,6 +152,39 @@ func aggregate(es *elasticsearch.Client) {
 			},
 		},
 	}
+}
+
+func main() {
+	esURL := envOrDefault("ES_URL", "http://localhost:9200")
+	interval := 10 * time.Second
+
+	es, err := elasticsearch.NewClient(elasticsearch.Config{
+		Addresses: []string{esURL},
+	})
+	if err != nil {
+		log.Fatalf("ES connect: %v", err)
+	}
+	log.Printf("Aggregator started (ES: %s, interval: %s)", esURL, interval)
+
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+
+	sigCh := make(chan os.Signal, 1)
+	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
+
+	for {
+		select {
+		case <-ticker.C:
+			aggregate(es)
+		case <-sigCh:
+			log.Println("Shutting down...")
+			return
+		}
+	}
+}
+
+func aggregate(es *elasticsearch.Client) {
+	query := buildQuery()
 
 	var buf bytes.Buffer
 	json.NewEncoder(&buf).Encode(query)
@@ -176,42 +223,18 @@ func aggregate(es *elasticsearch.Client) {
 
 	now := time.Now().UTC()
 	indexName := fmt.Sprintf("plant-summary-%s", now.Format("2006-01-02"))
+	summaries := parseBuckets(result.Aggregations.ByPlant.Buckets, now)
+
 	written := 0
-
-	for _, raw := range result.Aggregations.ByPlant.Buckets {
-		var bucket plantBucket
-		if err := json.Unmarshal(raw, &bucket); err != nil {
-			continue
-		}
-
-		plantName := ""
-		if len(bucket.PlantName.Buckets) > 0 {
-			plantName = bucket.PlantName.Buckets[0].Key
-		}
-
-		panelCount := bucket.PanelCount.Value
-		totalWatt := bucket.TotalWatt.Value
-
-		summary := map[string]interface{}{
-			"plantId":      bucket.Key,
-			"plantName":    plantName,
-			"@timestamp":   now.Format(time.RFC3339Nano),
-			"timestamp":    now.Format(time.RFC3339Nano),
-			"totalWatt":    totalWatt,
-			"panelCount":   panelCount,
-			"onlineCount":  bucket.OnlinePanels.Count.Value,
-			"offlineCount": bucket.OfflinePanels.Count.Value,
-			"faultyCount":  bucket.FaultyCount.DocCount,
-		}
-
+	for _, s := range summaries {
 		var docBuf bytes.Buffer
-		json.NewEncoder(&docBuf).Encode(summary)
+		json.NewEncoder(&docBuf).Encode(s)
 
 		indexRes, err := es.Index(indexName, &docBuf,
 			es.Index.WithContext(context.Background()),
 		)
 		if err != nil {
-			log.Printf("ES index error for plant %s: %v", bucket.Key, err)
+			log.Printf("ES index error for plant %s: %v", s.PlantID, err)
 			continue
 		}
 		indexRes.Body.Close()
