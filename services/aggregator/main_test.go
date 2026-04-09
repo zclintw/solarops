@@ -279,8 +279,8 @@ func TestBuildQuery_Structure(t *testing.T) {
 	if !ok {
 		t.Fatal("expected @timestamp range")
 	}
-	if ts["gte"] != "now-15s" {
-		t.Errorf("expected gte now-15s, got %v", ts["gte"])
+	if ts["gte"] != "now-25s" {
+		t.Errorf("expected gte now-25s, got %v", ts["gte"])
 	}
 	if ts["lt"] != "now-5s" {
 		t.Errorf("expected lt now-5s, got %v", ts["lt"])

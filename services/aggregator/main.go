@@ -92,10 +92,14 @@ func parseBuckets(raw []json.RawMessage) []plantSummary {
 func buildQuery() map[string]interface{} {
 	return map[string]interface{}{
 		"size": 0,
+		// Rolling window: query 20s of data every 10s cycle = 10s overlap.
+		// Late-arriving panel data (Fluentd flush delay) gets a second chance to be
+		// aggregated by the next cycle. Combined with deterministic doc IDs below,
+		// re-aggregating the same second is idempotent (UPSERT, not double-count).
 		"query": map[string]interface{}{
 			"range": map[string]interface{}{
 				"@timestamp": map[string]interface{}{
-					"gte": "now-15s",
+					"gte": "now-25s",
 					"lt":  "now-5s",
 				},
 			},
@@ -242,7 +246,18 @@ func aggregate(es *elasticsearch.Client) {
 		var docBuf bytes.Buffer
 		json.NewEncoder(&docBuf).Encode(s)
 
+		// Deterministic doc ID per (plant, second). UPSERT semantics: re-processing
+		// the same second by the next cycle replaces the previous doc instead of
+		// creating a duplicate. This is the "idempotent sink" pattern.
+		t, err := time.Parse(time.RFC3339, s.Timestamp)
+		if err != nil {
+			log.Printf("invalid timestamp %q for plant %s: %v", s.Timestamp, s.PlantID, err)
+			continue
+		}
+		docID := fmt.Sprintf("%s_%d", s.PlantID, t.Unix())
+
 		indexRes, err := es.Index(indexName, &docBuf,
+			es.Index.WithDocumentID(docID),
 			es.Index.WithContext(context.Background()),
 		)
 		if err != nil {
