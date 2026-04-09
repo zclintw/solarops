@@ -10,10 +10,10 @@ import {
 
 interface DataPoint {
   time: string;
-  watt: number;
+  watt: number | null;
 }
 
-type ChartPoint = { time: string; watt?: number };
+type ChartPoint = { time: string; watt?: number | null };
 
 const WINDOW_SIZE = 60;
 

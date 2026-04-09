@@ -20,7 +20,7 @@ const STATUS_COLORS: Record<string, string> = {
 export function PlantDetail({ plants, send, updatePanels }: PlantDetailProps) {
   const { plantId } = useParams<{ plantId: string }>();
   const state = plantId ? plants[plantId] : undefined;
-  const [history, setHistory] = useState<{ time: string; watt: number }[]>([]);
+  const [history, setHistory] = useState<{ time: string; watt: number | null }[]>([]);
 
   // Load historical chart data once on mount
   useEffect(() => {
@@ -30,9 +30,9 @@ export function PlantDetail({ plants, send, updatePanels }: PlantDetailProps) {
       .then((data) => {
         const buckets = data?.aggregations?.over_time?.buckets || [];
         setHistory(
-          buckets.map((b: { key_as_string: string; total_watt: { value: number } }) => ({
+          buckets.map((b: { key_as_string: string; total_watt: { value: number | null } }) => ({
             time: new Date(b.key_as_string).toLocaleTimeString(),
-            watt: Math.round(b.total_watt?.value || 0),
+            watt: b.total_watt?.value != null ? Math.round(b.total_watt.value) : null,
           }))
         );
       })
