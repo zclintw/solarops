@@ -112,7 +112,7 @@ func main() {
 		}
 		interval := r.URL.Query().Get("interval")
 		if interval == "" {
-			interval = "10s"
+			interval = "1s"
 		}
 
 		query := map[string]interface{}{
@@ -135,7 +135,58 @@ func main() {
 					},
 					"aggs": map[string]interface{}{
 						"total_watt": map[string]interface{}{
-							"avg": map[string]interface{}{"field": "totalWatt"},
+							"sum": map[string]interface{}{"field": "totalWatt"},
+						},
+					},
+				},
+			},
+		}
+
+		var buf bytes.Buffer
+		json.NewEncoder(&buf).Encode(query)
+
+		res, err := es.Search(
+			es.Search.WithContext(context.Background()),
+			es.Search.WithIndex("plant-summary-*"),
+			es.Search.WithBody(&buf),
+		)
+		if err != nil {
+			http.Error(w, "ES query failed", http.StatusInternalServerError)
+			return
+		}
+		defer res.Body.Close()
+
+		w.Header().Set("Content-Type", "application/json")
+		io.Copy(w, res.Body)
+	})
+
+	// Total power history across all plants (for Dashboard)
+	mux.HandleFunc("GET /api/power/history", func(w http.ResponseWriter, r *http.Request) {
+		rangeParam := r.URL.Query().Get("range")
+		if rangeParam == "" {
+			rangeParam = "5m"
+		}
+		interval := r.URL.Query().Get("interval")
+		if interval == "" {
+			interval = "1s"
+		}
+
+		query := map[string]interface{}{
+			"size": 0,
+			"query": map[string]interface{}{
+				"range": map[string]interface{}{
+					"@timestamp": map[string]interface{}{"gte": "now-" + rangeParam},
+				},
+			},
+			"aggs": map[string]interface{}{
+				"over_time": map[string]interface{}{
+					"date_histogram": map[string]interface{}{
+						"field":          "@timestamp",
+						"fixed_interval": interval,
+					},
+					"aggs": map[string]interface{}{
+						"total_watt": map[string]interface{}{
+							"sum": map[string]interface{}{"field": "totalWatt"},
 						},
 					},
 				},
