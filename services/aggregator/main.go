@@ -39,6 +39,7 @@ type plantBucket struct {
 	} `json:"offline_panels"`
 	FaultyCount struct {
 		DocCount int `json:"doc_count"`
+		Count    struct{ Value int } `json:"count"`
 	} `json:"faulty_count"`
 }
 
@@ -77,7 +78,7 @@ func parseBuckets(raw []json.RawMessage, now time.Time) []plantSummary {
 			PanelCount:   bucket.PanelCount.Value,
 			OnlineCount:  bucket.OnlinePanels.Count.Value,
 			OfflineCount: bucket.OfflinePanels.Count.Value,
-			FaultyCount:  bucket.FaultyCount.DocCount,
+			FaultyCount:  bucket.FaultyCount.Count.Value,
 		})
 	}
 	return summaries
@@ -88,7 +89,10 @@ func buildQuery() map[string]interface{} {
 		"size": 0,
 		"query": map[string]interface{}{
 			"range": map[string]interface{}{
-				"@timestamp": map[string]interface{}{"gte": "now-10s"},
+				"@timestamp": map[string]interface{}{
+					"gte": "now-15s",
+					"lt":  "now-5s",
+				},
 			},
 		},
 		"aggs": map[string]interface{}{
@@ -98,54 +102,55 @@ func buildQuery() map[string]interface{} {
 					"size":  100,
 				},
 				"aggs": map[string]interface{}{
-					"by_panel": map[string]interface{}{
-						"terms": map[string]interface{}{
-							"field": "panelId",
-							"size":  200,
+					"per_second": map[string]interface{}{
+						"date_histogram": map[string]interface{}{
+							"field":          "@timestamp",
+							"fixed_interval": "1s",
+							"min_doc_count":  1,
 						},
 						"aggs": map[string]interface{}{
-							"avg_watt": map[string]interface{}{
-								"avg": map[string]interface{}{"field": "watt"},
+							"total_watt": map[string]interface{}{
+								"sum": map[string]interface{}{"field": "watt"},
 							},
-						},
-					},
-					"total_watt": map[string]interface{}{
-						"sum_bucket": map[string]interface{}{
-							"buckets_path": "by_panel>avg_watt",
-						},
-					},
-					"plant_name": map[string]interface{}{
-						"terms": map[string]interface{}{
-							"field": "plantName",
-							"size":  1,
-						},
-					},
-					"panel_count": map[string]interface{}{
-						"cardinality": map[string]interface{}{"field": "panelId"},
-					},
-					"online_panels": map[string]interface{}{
-						"filter": map[string]interface{}{
-							"term": map[string]interface{}{"status": "online"},
-						},
-						"aggs": map[string]interface{}{
-							"count": map[string]interface{}{
+							"plant_name": map[string]interface{}{
+								"terms": map[string]interface{}{
+									"field": "plantName",
+									"size":  1,
+								},
+							},
+							"panel_count": map[string]interface{}{
 								"cardinality": map[string]interface{}{"field": "panelId"},
 							},
-						},
-					},
-					"offline_panels": map[string]interface{}{
-						"filter": map[string]interface{}{
-							"term": map[string]interface{}{"status": "offline"},
-						},
-						"aggs": map[string]interface{}{
-							"count": map[string]interface{}{
-								"cardinality": map[string]interface{}{"field": "panelId"},
+							"online_panels": map[string]interface{}{
+								"filter": map[string]interface{}{
+									"term": map[string]interface{}{"status": "online"},
+								},
+								"aggs": map[string]interface{}{
+									"count": map[string]interface{}{
+										"cardinality": map[string]interface{}{"field": "panelId"},
+									},
+								},
 							},
-						},
-					},
-					"faulty_count": map[string]interface{}{
-						"filter": map[string]interface{}{
-							"exists": map[string]interface{}{"field": "faultMode"},
+							"offline_panels": map[string]interface{}{
+								"filter": map[string]interface{}{
+									"term": map[string]interface{}{"status": "offline"},
+								},
+								"aggs": map[string]interface{}{
+									"count": map[string]interface{}{
+										"cardinality": map[string]interface{}{"field": "panelId"},
+									},
+								},
+							},
+							"faulty_count": map[string]interface{}{
+								"filter": map[string]interface{}{
+									"exists": map[string]interface{}{"field": "faultMode"},
+								},
+								"aggs": map[string]interface{}{
+									"count": map[string]interface{}{
+										"cardinality": map[string]interface{}{"field": "panelId"},
+									},
+								},
+							},
 						},
 					},
 				},

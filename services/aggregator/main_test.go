@@ -16,7 +16,7 @@ func TestParseBuckets_NormalPlant(t *testing.T) {
 			"panel_count": {"value": 5},
 			"online_panels": {"doc_count": 10, "count": {"value": 5}},
 			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0}
+			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
 		}`),
 	}
 
@@ -60,7 +60,7 @@ func TestParseBuckets_MultiplePlants(t *testing.T) {
 			"panel_count": {"value": 5},
 			"online_panels": {"doc_count": 10, "count": {"value": 5}},
 			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0}
+			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
 		}`),
 		json.RawMessage(`{
 			"key": "plant-002",
@@ -69,7 +69,7 @@ func TestParseBuckets_MultiplePlants(t *testing.T) {
 			"panel_count": {"value": 6},
 			"online_panels": {"doc_count": 12, "count": {"value": 6}},
 			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 1}
+			"faulty_count": {"doc_count": 3, "count": {"value": 1}}
 		}`),
 	}
 
@@ -98,7 +98,7 @@ func TestParseBuckets_WithOfflinePanels(t *testing.T) {
 			"panel_count": {"value": 4},
 			"online_panels": {"doc_count": 6, "count": {"value": 2}},
 			"offline_panels": {"doc_count": 4, "count": {"value": 2}},
-			"faulty_count": {"doc_count": 0}
+			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
 		}`),
 	}
 
@@ -125,7 +125,7 @@ func TestParseBuckets_MissingPlantName(t *testing.T) {
 			"panel_count": {"value": 1},
 			"online_panels": {"doc_count": 1, "count": {"value": 1}},
 			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0}
+			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
 		}`),
 	}
 
@@ -158,7 +158,7 @@ func TestParseBuckets_InvalidJSON(t *testing.T) {
 			"panel_count": {"value": 2},
 			"online_panels": {"doc_count": 2, "count": {"value": 2}},
 			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0}
+			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
 		}`),
 	}
 
@@ -182,7 +182,7 @@ func TestParseBuckets_TimestampFormat(t *testing.T) {
 			"panel_count": {"value": 1},
 			"online_panels": {"doc_count": 1, "count": {"value": 1}},
 			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0}
+			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
 		}`),
 	}
 
@@ -203,6 +203,25 @@ func TestBuildQuery_Structure(t *testing.T) {
 		t.Error("expected size 0")
 	}
 
+	q, ok := query["query"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected query")
+	}
+	rangeFilter, ok := q["range"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected range filter")
+	}
+	ts, ok := rangeFilter["@timestamp"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected @timestamp range")
+	}
+	if ts["gte"] != "now-15s" {
+		t.Errorf("expected gte now-15s, got %v", ts["gte"])
+	}
+	if ts["lt"] != "now-5s" {
+		t.Errorf("expected lt now-5s, got %v", ts["lt"])
+	}
+
 	aggs, ok := query["aggs"].(map[string]interface{})
 	if !ok {
 		t.Fatal("expected aggs")
@@ -218,23 +237,30 @@ func TestBuildQuery_Structure(t *testing.T) {
 		t.Fatal("expected sub-aggregations under by_plant")
 	}
 
-	// Verify the fix: should have by_panel > avg_watt > sum_bucket pipeline, not direct sum
-	if _, ok := subAggs["by_panel"]; !ok {
-		t.Error("expected by_panel sub-aggregation (panels should be grouped before averaging)")
+	perSecond, ok := subAggs["per_second"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected per_second sub-aggregation")
 	}
-	if _, ok := subAggs["total_watt"]; !ok {
-		t.Error("expected total_watt pipeline aggregation")
+	dh, ok := perSecond["date_histogram"].(map[string]interface{})
+	if !ok {
+		t.Fatal("expected date_histogram in per_second")
+	}
+	if dh["fixed_interval"] != "1s" {
+		t.Errorf("expected fixed_interval 1s, got %v", dh["fixed_interval"])
+	}
+	if dh["min_doc_count"] != 1 {
+		t.Errorf("expected min_doc_count 1, got %v", dh["min_doc_count"])
 	}
 
-	totalWatt, ok := subAggs["total_watt"].(map[string]interface{})
+	perSecondAggs, ok := perSecond["aggs"].(map[string]interface{})
 	if !ok {
-		t.Fatal("expected total_watt to be a map")
+		t.Fatal("expected aggs inside per_second")
 	}
-	sumBucket, ok := totalWatt["sum_bucket"].(map[string]interface{})
+	totalWatt, ok := perSecondAggs["total_watt"].(map[string]interface{})
 	if !ok {
-		t.Fatal("expected sum_bucket in total_watt")
+		t.Fatal("expected total_watt in per_second aggs")
 	}
-	if sumBucket["buckets_path"] != "by_panel>avg_watt" {
-		t.Errorf("expected buckets_path 'by_panel>avg_watt', got %v", sumBucket["buckets_path"])
+	if _, ok := totalWatt["sum"]; !ok {
+		t.Error("expected total_watt to use sum aggregation")
 	}
 }
