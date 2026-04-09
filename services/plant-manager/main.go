@@ -223,8 +223,10 @@ func main() {
 		io.Copy(w, res.Body)
 	})
 
-	// Latest summary per plant (for dashboard polling)
-	mux.HandleFunc("GET /api/plants/summary", func(w http.ResponseWriter, r *http.Request) {
+	// Current state per plant (for dashboard polling).
+	// Queries plant-panel-* with terms+top_hits to get each panel's latest
+	// reading, then reduces to per-plant summaries in Go.
+	mux.HandleFunc("GET /api/plants/current", func(w http.ResponseWriter, r *http.Request) {
 		query := map[string]interface{}{
 			"size": 0,
 			"query": map[string]interface{}{
@@ -239,11 +241,19 @@ func main() {
 						"size":  100,
 					},
 					"aggs": map[string]interface{}{
-						"latest": map[string]interface{}{
-							"top_hits": map[string]interface{}{
-								"size": 1,
-								"sort": []map[string]interface{}{
-									{"@timestamp": "desc"},
+						"by_panel": map[string]interface{}{
+							"terms": map[string]interface{}{
+								"field": "panelId",
+								"size":  200,
+							},
+							"aggs": map[string]interface{}{
+								"latest": map[string]interface{}{
+									"top_hits": map[string]interface{}{
+										"size": 1,
+										"sort": []map[string]interface{}{
+											{"@timestamp": "desc"},
+										},
+									},
 								},
 							},
 						},
@@ -257,7 +267,7 @@ func main() {
 
 		res, err := es.Search(
 			es.Search.WithContext(context.Background()),
-			es.Search.WithIndex("plant-summary-*"),
+			es.Search.WithIndex("plant-panel-*"),
 			es.Search.WithBody(&buf),
 		)
 		if err != nil {
@@ -266,8 +276,67 @@ func main() {
 		}
 		defer res.Body.Close()
 
+		// Parse the ES response and reduce to per-plant summaries.
+		var esResp struct {
+			Aggregations struct {
+				ByPlant struct {
+					Buckets []struct {
+						Key     string `json:"key"`
+						ByPanel struct {
+							Buckets []struct {
+								Latest struct {
+									Hits struct {
+										Hits []struct {
+											Source models.PanelReading `json:"_source"`
+										} `json:"hits"`
+									} `json:"hits"`
+								} `json:"latest"`
+							} `json:"buckets"`
+						} `json:"by_panel"`
+					} `json:"buckets"`
+				} `json:"by_plant"`
+			} `json:"aggregations"`
+		}
+		if err := json.NewDecoder(res.Body).Decode(&esResp); err != nil {
+			http.Error(w, "ES decode failed", http.StatusInternalServerError)
+			return
+		}
+
+		summaries := make([]models.PlantSummary, 0, len(esResp.Aggregations.ByPlant.Buckets))
+		for _, plantBucket := range esResp.Aggregations.ByPlant.Buckets {
+			summary := models.PlantSummary{
+				PlantID:    plantBucket.Key,
+				PanelCount: len(plantBucket.ByPanel.Buckets),
+			}
+			var latestTimestamp time.Time
+			for _, panelBucket := range plantBucket.ByPanel.Buckets {
+				if len(panelBucket.Latest.Hits.Hits) == 0 {
+					continue
+				}
+				reading := panelBucket.Latest.Hits.Hits[0].Source
+				if summary.PlantName == "" {
+					summary.PlantName = reading.PlantName
+				}
+				if reading.Timestamp.After(latestTimestamp) {
+					latestTimestamp = reading.Timestamp
+				}
+				summary.TotalWatt += reading.Watt
+				switch reading.Status {
+				case models.StatusOnline:
+					summary.OnlineCount++
+				case models.StatusOffline:
+					summary.OfflineCount++
+				}
+				if reading.FaultMode != models.FaultNone {
+					summary.FaultyCount++
+				}
+			}
+			summary.Timestamp = latestTimestamp
+			summaries = append(summaries, summary)
+		}
+
 		w.Header().Set("Content-Type", "application/json")
-		io.Copy(w, res.Body)
+		json.NewEncoder(w).Encode(map[string]interface{}{"plants": summaries})
 	})
 
 	// Latest panel readings for a plant (for detail view polling)
