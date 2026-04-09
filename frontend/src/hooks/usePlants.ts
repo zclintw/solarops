@@ -9,22 +9,16 @@ export function usePlants() {
   const [plants, setPlants] = useState<Record<string, PlantState>>({});
   const [alerts, setAlerts] = useState<Alert[]>([]);
 
-  // Poll plant summaries from ES via plant-manager API
+  // Poll plant current state from plant-manager API
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch("/api/plants/summary");
-        const data = await res.json();
-        const buckets: Array<{
-          key: string;
-          latest: { hits: { hits: Array<{ _source: PlantSummary }> } };
-        }> = data?.aggregations?.by_plant?.buckets || [];
+        const res = await fetch("/api/plants/current");
+        const data: { plants: PlantSummary[] } = await res.json();
 
         setPlants((prev) => {
           const next = { ...prev };
-          for (const bucket of buckets) {
-            const summary = bucket.latest?.hits?.hits?.[0]?._source;
-            if (!summary) continue;
+          for (const summary of data.plants || []) {
             next[summary.plantId] = {
               summary,
               panels: prev[summary.plantId]?.panels || {},
