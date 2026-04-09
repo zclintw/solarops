@@ -132,6 +132,7 @@ func main() {
 					"date_histogram": map[string]interface{}{
 						"field":          "@timestamp",
 						"fixed_interval": interval,
+						"min_doc_count":  1,
 					},
 					"aggs": map[string]interface{}{
 						"total_watt": map[string]interface{}{
@@ -183,6 +184,7 @@ func main() {
 					"date_histogram": map[string]interface{}{
 						"field":          "@timestamp",
 						"fixed_interval": interval,
+						"min_doc_count":  1,
 					},
 					"aggs": map[string]interface{}{
 						"total_watt": map[string]interface{}{

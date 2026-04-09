@@ -25,8 +25,9 @@ export function PlantDetail({ plants, send, updatePanels }: PlantDetailProps) {
   // Fetch power history from ES, re-fetch every 10s
   useEffect(() => {
     if (!plantId) return;
+    const ctrl = new AbortController();
     const fetchHistory = () => {
-      fetch(`/api/plants/${plantId}/history?range=5m&interval=1s`)
+      fetch(`/api/plants/${plantId}/history?range=5m&interval=1s`, { signal: ctrl.signal })
         .then((res) => res.json())
         .then((data) => {
           const buckets = data?.aggregations?.over_time?.buckets || [];
@@ -37,11 +38,16 @@ export function PlantDetail({ plants, send, updatePanels }: PlantDetailProps) {
             }))
           );
         })
-        .catch(console.error);
+        .catch((e) => {
+          if (e.name !== "AbortError") console.error(e);
+        });
     };
     fetchHistory();
     const interval = setInterval(fetchHistory, 10_000);
-    return () => clearInterval(interval);
+    return () => {
+      clearInterval(interval);
+      ctrl.abort();
+    };
   }, [plantId]);
 
   // Poll panel readings every 2s

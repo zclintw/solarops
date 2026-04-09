@@ -132,9 +132,9 @@ sequenceDiagram
     participant AGG as aggregator
     participant ES as Elasticsearch
 
-    AGG->>ES: 查詢 plant-panel-* (now-10s)<br/>group by plantId<br/>avg(watt), cardinality(panelId)
-    ES-->>AGG: 各電廠聚合結果
-    AGG->>ES: 寫入 plant-summary-YYYY-MM-DD<br/>（totalWatt, panelCount, onlineCount...）
+    AGG->>ES: 查詢 plant-panel-* (now-15s to now-5s)<br/>group by plantId → date_histogram(1s) → sum(watt)<br/>cardinality(panelId), status counts
+    ES-->>AGG: 各電廠每秒聚合結果（~10 buckets/plant）
+    AGG->>ES: 寫入 plant-summary-YYYY-MM-DD<br/>（每秒一筆，timestamp 取自 ES bucket key，~10 筆/電廠/cycle）
 ```
 
 ### 3. 前端資料取得流程
@@ -217,7 +217,7 @@ sequenceDiagram
 
 ### `plant-summary-YYYY-MM-DD`（aggregator 寫入）
 
-每 10 秒每電廠一筆。
+每個 cycle（10 秒）每電廠寫入約 10 筆（每秒一筆，timestamp 取自 ES bucket key）。
 
 | 欄位 | 類型 | 說明 |
 |------|------|------|

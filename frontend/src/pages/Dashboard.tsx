@@ -12,19 +12,6 @@ interface DashboardProps {
   onResolveAlert: (id: string) => void;
 }
 
-function fetchPowerHistory() {
-  return fetch("/api/power/history?range=5m&interval=1s")
-    .then((res) => res.json())
-    .then((data) => {
-      const buckets = data?.aggregations?.over_time?.buckets || [];
-      return buckets.map(
-        (b: { key_as_string: string; total_watt: { value: number | null } }) => ({
-          time: new Date(b.key_as_string).toLocaleTimeString(),
-          watt: b.total_watt?.value != null ? Math.round(b.total_watt.value) : null,
-        })
-      );
-    });
-}
 
 export function Dashboard({
   plants,
@@ -43,11 +30,31 @@ export function Dashboard({
   const [history, setHistory] = useState<{ time: string; watt: number | null }[]>([]);
 
   useEffect(() => {
-    fetchPowerHistory().then(setHistory).catch(console.error);
-    const interval = setInterval(() => {
-      fetchPowerHistory().then(setHistory).catch(console.error);
-    }, 10_000);
-    return () => clearInterval(interval);
+    const ctrl = new AbortController();
+    const fetchHistory = () => {
+      fetch("/api/power/history?range=5m&interval=1s", { signal: ctrl.signal })
+        .then((res) => res.json())
+        .then((data) => {
+          const buckets = data?.aggregations?.over_time?.buckets || [];
+          setHistory(
+            buckets.map(
+              (b: { key_as_string: string; total_watt: { value: number | null } }) => ({
+                time: new Date(b.key_as_string).toLocaleTimeString(),
+                watt: b.total_watt?.value != null ? Math.round(b.total_watt.value) : null,
+              })
+            )
+          );
+        })
+        .catch((e) => {
+          if (e.name !== "AbortError") console.error(e);
+        });
+    };
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 10_000);
+    return () => {
+      clearInterval(interval);
+      ctrl.abort();
+    };
   }, []);
 
   return (
