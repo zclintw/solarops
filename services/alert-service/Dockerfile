@@ -3,7 +3,6 @@ FROM golang:1.25-alpine AS builder
 WORKDIR /build
 COPY shared/ ./shared/
 COPY services/alert-service/ ./services/alert-service/
-COPY services/aggregator/go.mod ./services/aggregator/go.mod
 COPY go.work ./
 COPY services/mock-plant/go.mod ./services/mock-plant/go.mod
 COPY services/ws-gateway/go.mod ./services/ws-gateway/go.mod

@@ -1,7 +1,6 @@
 go 1.25.0
 
 use (
-	./services/aggregator
 	./services/alert-service
 	./services/mock-plant
 	./services/plant-manager

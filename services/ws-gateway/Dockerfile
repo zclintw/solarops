@@ -3,7 +3,6 @@ FROM golang:1.25-alpine AS builder
 WORKDIR /build
 COPY shared/ ./shared/
 COPY services/ws-gateway/ ./services/ws-gateway/
-COPY services/aggregator/go.mod ./services/aggregator/go.mod
 COPY go.work ./
 
 # Copy go.mod stubs for other workspace modules (go.work resolution)
