@@ -108,13 +108,15 @@ func main() {
 		plantID := r.PathValue("plantId")
 		rangeParam := r.URL.Query().Get("range")
 		if rangeParam == "" {
-			rangeParam = "1h"
+			rangeParam = "5m"
 		}
 		interval := r.URL.Query().Get("interval")
 		if interval == "" {
 			interval = "1s"
 		}
 
+		// Query plant-panel-* directly with sum(watt). 5-second watermark
+		// (lt: now-5s) hides partial Fluentd-buffered data near "now".
 		query := map[string]interface{}{
 			"size": 0,
 			"query": map[string]interface{}{
@@ -122,7 +124,10 @@ func main() {
 					"filter": []map[string]interface{}{
 						{"term": map[string]interface{}{"plantId": plantID}},
 						{"range": map[string]interface{}{
-							"@timestamp": map[string]interface{}{"gte": "now-" + rangeParam},
+							"@timestamp": map[string]interface{}{
+								"gte": "now-" + rangeParam + "-5s",
+								"lt":  "now-5s",
+							},
 						}},
 					},
 				},
@@ -136,7 +141,7 @@ func main() {
 					},
 					"aggs": map[string]interface{}{
 						"total_watt": map[string]interface{}{
-							"sum": map[string]interface{}{"field": "totalWatt"},
+							"sum": map[string]interface{}{"field": "watt"},
 						},
 					},
 				},
@@ -148,7 +153,7 @@ func main() {
 
 		res, err := es.Search(
 			es.Search.WithContext(context.Background()),
-			es.Search.WithIndex("plant-summary-*"),
+			es.Search.WithIndex("plant-panel-*"),
 			es.Search.WithBody(&buf),
 		)
 		if err != nil {
@@ -172,11 +177,16 @@ func main() {
 			interval = "1s"
 		}
 
+		// Query plant-panel-* directly with sum(watt). 5-second watermark
+		// (lt: now-5s) hides partial Fluentd-buffered data near "now".
 		query := map[string]interface{}{
 			"size": 0,
 			"query": map[string]interface{}{
 				"range": map[string]interface{}{
-					"@timestamp": map[string]interface{}{"gte": "now-" + rangeParam},
+					"@timestamp": map[string]interface{}{
+						"gte": "now-" + rangeParam + "-5s",
+						"lt":  "now-5s",
+					},
 				},
 			},
 			"aggs": map[string]interface{}{
@@ -188,7 +198,7 @@ func main() {
 					},
 					"aggs": map[string]interface{}{
 						"total_watt": map[string]interface{}{
-							"sum": map[string]interface{}{"field": "totalWatt"},
+							"sum": map[string]interface{}{"field": "watt"},
 						},
 					},
 				},
@@ -200,7 +210,7 @@ func main() {
 
 		res, err := es.Search(
 			es.Search.WithContext(context.Background()),
-			es.Search.WithIndex("plant-summary-*"),
+			es.Search.WithIndex("plant-panel-*"),
 			es.Search.WithBody(&buf),
 		)
 		if err != nil {
