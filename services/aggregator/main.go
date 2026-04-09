@@ -92,14 +92,15 @@ func parseBuckets(raw []json.RawMessage) []plantSummary {
 func buildQuery() map[string]interface{} {
 	return map[string]interface{}{
 		"size": 0,
-		// Rolling window: query 20s of data every 10s cycle = 10s overlap.
-		// Late-arriving panel data (Fluentd flush delay) gets a second chance to be
-		// aggregated by the next cycle. Combined with deterministic doc IDs below,
-		// re-aggregating the same second is idempotent (UPSERT, not double-count).
+		// Rolling window: query 40s of data every 10s cycle = 30s overlap.
+		// Each second is processed by 4 consecutive cycles, giving late-arriving
+		// panel data (Fluentd flush delay) multiple chances to be included.
+		// Combined with deterministic doc IDs below, re-aggregating the same
+		// second is idempotent (UPSERT, not double-count).
 		"query": map[string]interface{}{
 			"range": map[string]interface{}{
 				"@timestamp": map[string]interface{}{
-					"gte": "now-25s",
+					"gte": "now-45s",
 					"lt":  "now-5s",
 				},
 			},
