@@ -2,6 +2,8 @@
 
 這份文件記錄已知的架構改善方向，作為未來修改的參考依據。
 
+> **更新（2026-04-09）：** 方案 A 已實作。aggregator service 已移除，plant-manager 現在直接查詢 `plant-panel-*`。詳見 `docs/superpowers/specs/2026-04-09-remove-aggregator-direct-query-design.md`。
+
 ## Time-Series 資料管線：late-arriving data 與 pre-aggregation
 
 ### 目前狀態（2026-04-09）
@@ -38,7 +40,7 @@ Mock plant 每秒產生 panel readings → Fluentd buffer 有 ~1-2 秒 flush 延
 
 ## 未來可能的改善方向
 
-### 方案 A：移除 aggregator，API 直接查 raw panel data
+### 方案 A：移除 aggregator，API 直接查 raw panel data ✅ 已實作（2026-04-09）
 
 **改動範圍：**
 - 重寫 `plant-manager` 的 `/api/plants/{id}/history` 和 `/api/power/history`，改為直接對 `plant-panel-*` 做 `date_histogram + sum(watt)`
