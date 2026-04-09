@@ -22,34 +22,27 @@ export function PlantDetail({ plants, send, updatePanels }: PlantDetailProps) {
   const state = plantId ? plants[plantId] : undefined;
   const [history, setHistory] = useState<{ time: string; watt: number | null }[]>([]);
 
-  // Load historical chart data once on mount
+  // Fetch power history from ES, re-fetch every 10s
   useEffect(() => {
     if (!plantId) return;
-    fetch(`/api/plants/${plantId}/history?range=1h&interval=10s`)
-      .then((res) => res.json())
-      .then((data) => {
-        const buckets = data?.aggregations?.over_time?.buckets || [];
-        setHistory(
-          buckets.map((b: { key_as_string: string; total_watt: { value: number | null } }) => ({
-            time: new Date(b.key_as_string).toLocaleTimeString(),
-            watt: b.total_watt?.value != null ? Math.round(b.total_watt.value) : null,
-          }))
-        );
-      })
-      .catch(console.error);
+    const fetchHistory = () => {
+      fetch(`/api/plants/${plantId}/history?range=5m&interval=1s`)
+        .then((res) => res.json())
+        .then((data) => {
+          const buckets = data?.aggregations?.over_time?.buckets || [];
+          setHistory(
+            buckets.map((b: { key_as_string: string; total_watt: { value: number | null } }) => ({
+              time: new Date(b.key_as_string).toLocaleTimeString(),
+              watt: b.total_watt?.value != null ? Math.round(b.total_watt.value) : null,
+            }))
+          );
+        })
+        .catch(console.error);
+    };
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 10_000);
+    return () => clearInterval(interval);
   }, [plantId]);
-
-  // Append a live data point whenever the summary updates (polled every 3s)
-  useEffect(() => {
-    if (!state?.summary) return;
-    setHistory((prev) => [
-      ...prev.slice(-59),
-      {
-        time: new Date().toLocaleTimeString(),
-        watt: Math.round(state.summary!.totalWatt),
-      },
-    ]);
-  }, [state?.summary?.timestamp]);
 
   // Poll panel readings every 2s
   useEffect(() => {
