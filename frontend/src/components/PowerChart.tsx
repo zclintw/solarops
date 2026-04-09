@@ -13,15 +13,29 @@ interface DataPoint {
   watt: number;
 }
 
+type ChartPoint = { time: string; watt?: number };
+
+const WINDOW_SIZE = 60;
+
 interface PowerChartProps {
   data: DataPoint[];
   height?: number;
 }
 
 export function PowerChart({ data, height = 200 }: PowerChartProps) {
+  const chartData: ChartPoint[] =
+    data.length >= WINDOW_SIZE
+      ? data
+      : [
+          ...Array.from({ length: WINDOW_SIZE - data.length }, (): ChartPoint => ({
+            time: "",
+          })),
+          ...data,
+        ];
+
   return (
     <ResponsiveContainer width="100%" height={height}>
-      <LineChart data={data}>
+      <LineChart data={chartData}>
         <CartesianGrid strokeDasharray="3 3" stroke="#333" />
         <XAxis dataKey="time" stroke="#888" fontSize={12} />
         <YAxis stroke="#888" fontSize={12} />
