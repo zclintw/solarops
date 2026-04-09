@@ -22,15 +22,29 @@ A solar plant real-time monitoring platform, built as a learning/practice MVP us
 | Containerization | Docker Compose |
 | Reverse proxy | Nginx |
 
+## Screenshots
+
+### Dashboard
+
+![Dashboard](docs/images/dashboard.png)
+
+Total power across all plants, per-plant cards, and active alerts.
+
+### Plant Detail
+
+![Plant Detail](docs/images/plant-detail.png)
+
+Per-plant power history and individual panel controls (on/off, reset, fault injection).
+
 ## Architecture
 
 ```
 mock-plant ──→ NATS ──→ alert-service (real-time detection)
      │                    ws-gateway (WebSocket bridge)
-     │                    plant-manager (ES query gateway)
-     └──→ Fluentd ──→ Elasticsearch ←── aggregator (10s summary)
-                              ↑
-                         frontend (React, polls REST + WebSocket)
+     │
+     └──→ Fluentd ──→ Elasticsearch ←── plant-manager (ES query gateway)
+                                              ↑
+                                         frontend (React, polls REST + WebSocket)
 ```
 
 Full architecture documentation with Mermaid diagrams, data flows, API reference, and alert rules is in [`docs/architecture.md`](docs/architecture.md).
@@ -51,7 +65,6 @@ Then open http://localhost:3000.
 | `ws-gateway` | 8080 | WebSocket gateway, bridges NATS and browser |
 | `alert-service` | 8081 | Real-time anomaly detection and alert management |
 | `plant-manager` | 8082 | ES query gateway, NATS auto-discovery, panel commands |
-| `aggregator` | — | Aggregates panel data from ES every 10s |
 | `mock-plant` | — | Simulates solar plants (3 pre-configured) |
 | `elasticsearch` | 9200 | Data store |
 | `nats` | 4222 | Message bus |
