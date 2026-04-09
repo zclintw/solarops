@@ -3,25 +3,29 @@ package main
 import (
 	"encoding/json"
 	"testing"
-	"time"
 )
 
 func TestParseBuckets_NormalPlant(t *testing.T) {
-	// Simulates ES response for Sunrise Valley: 5 panels × 3000W = 15000W
 	raw := []json.RawMessage{
 		json.RawMessage(`{
 			"key": "plant-001",
-			"total_watt": {"value": 15000},
-			"plant_name": {"buckets": [{"key": "Sunrise Valley"}]},
-			"panel_count": {"value": 5},
-			"online_panels": {"doc_count": 10, "count": {"value": 5}},
-			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+			"per_second": {
+				"buckets": [
+					{
+						"key_as_string": "2026-04-01T12:00:05.000Z",
+						"total_watt": {"value": 15000},
+						"plant_name": {"buckets": [{"key": "Sunrise Valley"}]},
+						"panel_count": {"value": 5},
+						"online_panels": {"doc_count": 10, "count": {"value": 5}},
+						"offline_panels": {"doc_count": 0, "count": {"value": 0}},
+						"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+					}
+				]
+			}
 		}`),
 	}
 
-	now := time.Date(2026, 4, 1, 12, 0, 0, 0, time.UTC)
-	summaries := parseBuckets(raw, now)
+	summaries := parseBuckets(raw)
 
 	if len(summaries) != 1 {
 		t.Fatalf("expected 1 summary, got %d", len(summaries))
@@ -43,11 +47,56 @@ func TestParseBuckets_NormalPlant(t *testing.T) {
 	if s.OnlineCount != 5 {
 		t.Errorf("expected onlineCount 5, got %d", s.OnlineCount)
 	}
-	if s.OfflineCount != 0 {
-		t.Errorf("expected offlineCount 0, got %d", s.OfflineCount)
+	if s.Timestamp != "2026-04-01T12:00:05.000Z" {
+		t.Errorf("expected timestamp from bucket key, got %s", s.Timestamp)
 	}
-	if s.FaultyCount != 0 {
-		t.Errorf("expected faultyCount 0, got %d", s.FaultyCount)
+}
+
+func TestParseBuckets_MultipleSeconds(t *testing.T) {
+	raw := []json.RawMessage{
+		json.RawMessage(`{
+			"key": "plant-001",
+			"per_second": {
+				"buckets": [
+					{
+						"key_as_string": "2026-04-01T12:00:05.000Z",
+						"total_watt": {"value": 15000},
+						"plant_name": {"buckets": [{"key": "Sunrise Valley"}]},
+						"panel_count": {"value": 5},
+						"online_panels": {"doc_count": 10, "count": {"value": 5}},
+						"offline_panels": {"doc_count": 0, "count": {"value": 0}},
+						"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+					},
+					{
+						"key_as_string": "2026-04-01T12:00:06.000Z",
+						"total_watt": {"value": 14500},
+						"plant_name": {"buckets": [{"key": "Sunrise Valley"}]},
+						"panel_count": {"value": 5},
+						"online_panels": {"doc_count": 10, "count": {"value": 5}},
+						"offline_panels": {"doc_count": 0, "count": {"value": 0}},
+						"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+					}
+				]
+			}
+		}`),
+	}
+
+	summaries := parseBuckets(raw)
+
+	if len(summaries) != 2 {
+		t.Fatalf("expected 2 summaries (one per second), got %d", len(summaries))
+	}
+	if summaries[0].TotalWatt != 15000 {
+		t.Errorf("expected first second 15000, got %f", summaries[0].TotalWatt)
+	}
+	if summaries[1].TotalWatt != 14500 {
+		t.Errorf("expected second second 14500, got %f", summaries[1].TotalWatt)
+	}
+	if summaries[0].Timestamp != "2026-04-01T12:00:05.000Z" {
+		t.Errorf("expected bucket timestamp, got %s", summaries[0].Timestamp)
+	}
+	if summaries[1].Timestamp != "2026-04-01T12:00:06.000Z" {
+		t.Errorf("expected bucket timestamp, got %s", summaries[1].Timestamp)
 	}
 }
 
@@ -55,25 +104,35 @@ func TestParseBuckets_MultiplePlants(t *testing.T) {
 	raw := []json.RawMessage{
 		json.RawMessage(`{
 			"key": "plant-001",
-			"total_watt": {"value": 15000},
-			"plant_name": {"buckets": [{"key": "Sunrise Valley"}]},
-			"panel_count": {"value": 5},
-			"online_panels": {"doc_count": 10, "count": {"value": 5}},
-			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+			"per_second": {
+				"buckets": [{
+					"key_as_string": "2026-04-01T12:00:05.000Z",
+					"total_watt": {"value": 15000},
+					"plant_name": {"buckets": [{"key": "Sunrise Valley"}]},
+					"panel_count": {"value": 5},
+					"online_panels": {"doc_count": 10, "count": {"value": 5}},
+					"offline_panels": {"doc_count": 0, "count": {"value": 0}},
+					"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+				}]
+			}
 		}`),
 		json.RawMessage(`{
 			"key": "plant-002",
-			"total_watt": {"value": 16800},
-			"plant_name": {"buckets": [{"key": "Blue Horizon"}]},
-			"panel_count": {"value": 6},
-			"online_panels": {"doc_count": 12, "count": {"value": 6}},
-			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 3, "count": {"value": 1}}
+			"per_second": {
+				"buckets": [{
+					"key_as_string": "2026-04-01T12:00:05.000Z",
+					"total_watt": {"value": 16800},
+					"plant_name": {"buckets": [{"key": "Blue Horizon"}]},
+					"panel_count": {"value": 6},
+					"online_panels": {"doc_count": 12, "count": {"value": 6}},
+					"offline_panels": {"doc_count": 0, "count": {"value": 0}},
+					"faulty_count": {"doc_count": 3, "count": {"value": 1}}
+				}]
+			}
 		}`),
 	}
 
-	summaries := parseBuckets(raw, time.Now().UTC())
+	summaries := parseBuckets(raw)
 
 	if len(summaries) != 2 {
 		t.Fatalf("expected 2 summaries, got %d", len(summaries))
@@ -83,7 +142,6 @@ func TestParseBuckets_MultiplePlants(t *testing.T) {
 	if total != 31800 {
 		t.Errorf("expected combined totalWatt 31800, got %f", total)
 	}
-
 	if summaries[1].FaultyCount != 1 {
 		t.Errorf("expected faultyCount 1 for plant-002, got %d", summaries[1].FaultyCount)
 	}
@@ -93,16 +151,21 @@ func TestParseBuckets_WithOfflinePanels(t *testing.T) {
 	raw := []json.RawMessage{
 		json.RawMessage(`{
 			"key": "plant-003",
-			"total_watt": {"value": 6000},
-			"plant_name": {"buckets": [{"key": "Golden Ridge"}]},
-			"panel_count": {"value": 4},
-			"online_panels": {"doc_count": 6, "count": {"value": 2}},
-			"offline_panels": {"doc_count": 4, "count": {"value": 2}},
-			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+			"per_second": {
+				"buckets": [{
+					"key_as_string": "2026-04-01T12:00:05.000Z",
+					"total_watt": {"value": 6000},
+					"plant_name": {"buckets": [{"key": "Golden Ridge"}]},
+					"panel_count": {"value": 4},
+					"online_panels": {"doc_count": 6, "count": {"value": 2}},
+					"offline_panels": {"doc_count": 4, "count": {"value": 2}},
+					"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+				}]
+			}
 		}`),
 	}
 
-	summaries := parseBuckets(raw, time.Now().UTC())
+	summaries := parseBuckets(raw)
 	s := summaries[0]
 
 	if s.OnlineCount != 2 {
@@ -120,29 +183,33 @@ func TestParseBuckets_MissingPlantName(t *testing.T) {
 	raw := []json.RawMessage{
 		json.RawMessage(`{
 			"key": "plant-orphan",
-			"total_watt": {"value": 1000},
-			"plant_name": {"buckets": []},
-			"panel_count": {"value": 1},
-			"online_panels": {"doc_count": 1, "count": {"value": 1}},
-			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+			"per_second": {
+				"buckets": [{
+					"key_as_string": "2026-04-01T12:00:05.000Z",
+					"total_watt": {"value": 1000},
+					"plant_name": {"buckets": []},
+					"panel_count": {"value": 1},
+					"online_panels": {"doc_count": 1, "count": {"value": 1}},
+					"offline_panels": {"doc_count": 0, "count": {"value": 0}},
+					"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+				}]
+			}
 		}`),
 	}
 
-	summaries := parseBuckets(raw, time.Now().UTC())
-
+	summaries := parseBuckets(raw)
 	if summaries[0].PlantName != "" {
 		t.Errorf("expected empty plantName, got %s", summaries[0].PlantName)
 	}
 }
 
 func TestParseBuckets_EmptyInput(t *testing.T) {
-	summaries := parseBuckets(nil, time.Now().UTC())
+	summaries := parseBuckets(nil)
 	if len(summaries) != 0 {
 		t.Errorf("expected 0 summaries for nil input, got %d", len(summaries))
 	}
 
-	summaries = parseBuckets([]json.RawMessage{}, time.Now().UTC())
+	summaries = parseBuckets([]json.RawMessage{})
 	if len(summaries) != 0 {
 		t.Errorf("expected 0 summaries for empty input, got %d", len(summaries))
 	}
@@ -153,16 +220,21 @@ func TestParseBuckets_InvalidJSON(t *testing.T) {
 		json.RawMessage(`{invalid json}`),
 		json.RawMessage(`{
 			"key": "plant-ok",
-			"total_watt": {"value": 5000},
-			"plant_name": {"buckets": [{"key": "Valid Plant"}]},
-			"panel_count": {"value": 2},
-			"online_panels": {"doc_count": 2, "count": {"value": 2}},
-			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+			"per_second": {
+				"buckets": [{
+					"key_as_string": "2026-04-01T12:00:05.000Z",
+					"total_watt": {"value": 5000},
+					"plant_name": {"buckets": [{"key": "Valid Plant"}]},
+					"panel_count": {"value": 2},
+					"online_panels": {"doc_count": 2, "count": {"value": 2}},
+					"offline_panels": {"doc_count": 0, "count": {"value": 0}},
+					"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+				}]
+			}
 		}`),
 	}
 
-	summaries := parseBuckets(raw, time.Now().UTC())
+	summaries := parseBuckets(raw)
 
 	if len(summaries) != 1 {
 		t.Fatalf("expected 1 summary (skip invalid), got %d", len(summaries))
@@ -172,27 +244,19 @@ func TestParseBuckets_InvalidJSON(t *testing.T) {
 	}
 }
 
-func TestParseBuckets_TimestampFormat(t *testing.T) {
-	now := time.Date(2026, 4, 1, 12, 30, 45, 0, time.UTC)
+func TestParseBuckets_EmptyPerSecondBuckets(t *testing.T) {
 	raw := []json.RawMessage{
 		json.RawMessage(`{
-			"key": "plant-ts",
-			"total_watt": {"value": 1000},
-			"plant_name": {"buckets": [{"key": "Test"}]},
-			"panel_count": {"value": 1},
-			"online_panels": {"doc_count": 1, "count": {"value": 1}},
-			"offline_panels": {"doc_count": 0, "count": {"value": 0}},
-			"faulty_count": {"doc_count": 0, "count": {"value": 0}}
+			"key": "plant-empty",
+			"per_second": {
+				"buckets": []
+			}
 		}`),
 	}
 
-	summaries := parseBuckets(raw, now)
-
-	if summaries[0].Timestamp != summaries[0].TimestampAlt {
-		t.Errorf("@timestamp and timestamp should be equal")
-	}
-	if summaries[0].Timestamp == "" {
-		t.Error("timestamp should not be empty")
+	summaries := parseBuckets(raw)
+	if len(summaries) != 0 {
+		t.Errorf("expected 0 summaries for plant with no per_second buckets, got %d", len(summaries))
 	}
 }
 

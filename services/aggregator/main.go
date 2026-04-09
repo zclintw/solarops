@@ -22,13 +22,13 @@ func envOrDefault(key, def string) string {
 	return def
 }
 
-type plantBucket struct {
-	Key       string `json:"key"`
-	TotalWatt struct{ Value float64 } `json:"total_watt"`
-	PlantName struct {
+type secondBucket struct {
+	KeyAsString  string `json:"key_as_string"`
+	TotalWatt    struct{ Value float64 } `json:"total_watt"`
+	PlantName    struct {
 		Buckets []struct{ Key string } `json:"buckets"`
 	} `json:"plant_name"`
-	PanelCount struct{ Value int } `json:"panel_count"`
+	PanelCount   struct{ Value int } `json:"panel_count"`
 	OnlinePanels struct {
 		DocCount int `json:"doc_count"`
 		Count    struct{ Value int } `json:"count"`
@@ -43,6 +43,13 @@ type plantBucket struct {
 	} `json:"faulty_count"`
 }
 
+type plantBucket struct {
+	Key       string `json:"key"`
+	PerSecond struct {
+		Buckets []secondBucket `json:"buckets"`
+	} `json:"per_second"`
+}
+
 type plantSummary struct {
 	PlantID      string  `json:"plantId"`
 	PlantName    string  `json:"plantName"`
@@ -55,8 +62,7 @@ type plantSummary struct {
 	FaultyCount  int     `json:"faultyCount"`
 }
 
-func parseBuckets(raw []json.RawMessage, now time.Time) []plantSummary {
-	ts := now.Format(time.RFC3339Nano)
+func parseBuckets(raw []json.RawMessage) []plantSummary {
 	var summaries []plantSummary
 	for _, r := range raw {
 		var bucket plantBucket
@@ -64,22 +70,24 @@ func parseBuckets(raw []json.RawMessage, now time.Time) []plantSummary {
 			continue
 		}
 
-		plantName := ""
-		if len(bucket.PlantName.Buckets) > 0 {
-			plantName = bucket.PlantName.Buckets[0].Key
-		}
+		for _, sb := range bucket.PerSecond.Buckets {
+			plantName := ""
+			if len(sb.PlantName.Buckets) > 0 {
+				plantName = sb.PlantName.Buckets[0].Key
+			}
 
-		summaries = append(summaries, plantSummary{
-			PlantID:      bucket.Key,
-			PlantName:    plantName,
-			Timestamp:    ts,
-			TimestampAlt: ts,
-			TotalWatt:    bucket.TotalWatt.Value,
-			PanelCount:   bucket.PanelCount.Value,
-			OnlineCount:  bucket.OnlinePanels.Count.Value,
-			OfflineCount: bucket.OfflinePanels.Count.Value,
-			FaultyCount:  bucket.FaultyCount.Count.Value,
-		})
+			summaries = append(summaries, plantSummary{
+				PlantID:      bucket.Key,
+				PlantName:    plantName,
+				Timestamp:    sb.KeyAsString,
+				TimestampAlt: sb.KeyAsString,
+				TotalWatt:    sb.TotalWatt.Value,
+				PanelCount:   sb.PanelCount.Value,
+				OnlineCount:  sb.OnlinePanels.Count.Value,
+				OfflineCount: sb.OfflinePanels.Count.Value,
+				FaultyCount:  sb.FaultyCount.Count.Value,
+			})
+		}
 	}
 	return summaries
 }
@@ -226,9 +234,8 @@ func aggregate(es *elasticsearch.Client) {
 		return
 	}
 
-	now := time.Now().UTC()
-	indexName := fmt.Sprintf("plant-summary-%s", now.Format("2006-01-02"))
-	summaries := parseBuckets(result.Aggregations.ByPlant.Buckets, now)
+	indexName := fmt.Sprintf("plant-summary-%s", time.Now().UTC().Format("2006-01-02"))
+	summaries := parseBuckets(result.Aggregations.ByPlant.Buckets)
 
 	written := 0
 	for _, s := range summaries {
