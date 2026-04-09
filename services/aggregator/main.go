@@ -23,23 +23,20 @@ func envOrDefault(key, def string) string {
 }
 
 type secondBucket struct {
-	KeyAsString  string `json:"key_as_string"`
-	TotalWatt    struct{ Value float64 } `json:"total_watt"`
-	PlantName    struct {
+	KeyAsString string                  `json:"key_as_string"`
+	TotalWatt   struct{ Value float64 } `json:"total_watt"`
+	PlantName   struct {
 		Buckets []struct{ Key string } `json:"buckets"`
 	} `json:"plant_name"`
 	PanelCount   struct{ Value int } `json:"panel_count"`
 	OnlinePanels struct {
-		DocCount int `json:"doc_count"`
-		Count    struct{ Value int } `json:"count"`
+		Count struct{ Value int } `json:"count"`
 	} `json:"online_panels"`
 	OfflinePanels struct {
-		DocCount int `json:"doc_count"`
-		Count    struct{ Value int } `json:"count"`
+		Count struct{ Value int } `json:"count"`
 	} `json:"offline_panels"`
 	FaultyCount struct {
-		DocCount int `json:"doc_count"`
-		Count    struct{ Value int } `json:"count"`
+		Count struct{ Value int } `json:"count"`
 	} `json:"faulty_count"`
 }
 
@@ -149,6 +146,9 @@ func buildQuery() map[string]interface{} {
 									},
 								},
 							},
+							// faulty_count uses cardinality of panelId to count distinct faulty
+							// panels per second (not document count, which would over-count panels
+							// emitting multiple readings within the 1s bucket).
 							"faulty_count": map[string]interface{}{
 								"filter": map[string]interface{}{
 									"exists": map[string]interface{}{"field": "faultMode"},
