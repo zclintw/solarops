@@ -1,4 +1,3 @@
-import { useMemo, useState, useEffect } from "react";
 import { PlantCard } from "../components/PlantCard";
 import { AlertList } from "../components/AlertList";
 import { PowerChart } from "../components/PowerChart";
@@ -7,6 +6,7 @@ import type { PlantState, Alert } from "../types";
 interface DashboardProps {
   plants: Record<string, PlantState>;
   alerts: Alert[];
+  powerHistory: { time: string; watt: number }[];
   onRemovePlant: (id: string) => void;
   onAcknowledgeAlert: (id: string) => void;
   onResolveAlert: (id: string) => void;
@@ -15,36 +15,17 @@ interface DashboardProps {
 export function Dashboard({
   plants,
   alerts,
+  powerHistory,
   onRemovePlant,
   onAcknowledgeAlert,
   onResolveAlert,
 }: DashboardProps) {
   const plantEntries = Object.entries(plants);
 
-  const totalWatt = useMemo(
-    () =>
-      plantEntries.reduce(
-        (sum, [, state]) => sum + (state.summary?.totalWatt || 0),
-        0
-      ),
-    [plantEntries]
+  const totalWatt = plantEntries.reduce(
+    (sum, [, state]) => sum + (state.summary?.totalWatt || 0),
+    0
   );
-
-  // lastSeen changes on every poll even when totalWatt stays constant
-  const lastSeen = useMemo(
-    () => Math.max(0, ...plantEntries.map(([, s]) => s.lastSeen)),
-    [plantEntries]
-  );
-
-  const [powerHistory, setPowerHistory] = useState<{ time: string; watt: number }[]>([]);
-
-  useEffect(() => {
-    if (plantEntries.length === 0) return;
-    setPowerHistory((prev) => [
-      ...prev.slice(-59),
-      { time: new Date().toLocaleTimeString(), watt: Math.round(totalWatt) },
-    ]);
-  }, [lastSeen]); // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div style={{ padding: 24, maxWidth: 1200, margin: "0 auto" }}>
