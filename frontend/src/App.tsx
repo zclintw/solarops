@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
-import { useCallback } from "react";
+import { useCallback, useState, useEffect } from "react";
 import { Dashboard } from "./pages/Dashboard";
 import { PlantDetail } from "./pages/PlantDetail";
 import { useWebSocket } from "./hooks/useWebSocket";
@@ -17,6 +17,31 @@ function App() {
   );
 
   const { send } = useWebSocket(onMessage);
+
+  const plantEntries = Object.entries(plants);
+
+  const totalWatt = plantEntries.reduce(
+    (sum, [, state]) => sum + (state.summary?.totalWatt || 0),
+    0
+  );
+
+  // lastSeen changes on every poll cycle, used as a tick to append history
+  const lastSeen = Math.max(0, ...plantEntries.map(([, s]) => s.lastSeen));
+
+  const [powerHistory, setPowerHistory] = useState<
+    { time: string; watt: number }[]
+  >([]);
+
+  useEffect(() => {
+    if (plantEntries.length === 0) return;
+    setPowerHistory((prev) => [
+      ...prev.slice(-59),
+      { time: new Date().toLocaleTimeString(), watt: Math.round(totalWatt) },
+    ]);
+    // totalWatt is read from current render closure, not a dependency.
+    // lastSeen is the polling tick that triggers history accumulation.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lastSeen]);
 
   return (
     <BrowserRouter>
@@ -50,6 +75,7 @@ function App() {
               <Dashboard
                 plants={plants}
                 alerts={alerts}
+                powerHistory={powerHistory}
                 onRemovePlant={removePlant}
                 onAcknowledgeAlert={acknowledgeAlert}
                 onResolveAlert={resolveAlert}
